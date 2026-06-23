@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.products.service;
 
+import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.products.dto.CreateProductRequest;
 import com.loop.new_loop_api.products.dto.ProductResponse;
 import com.loop.new_loop_api.products.dto.UpdateProductRequest;
@@ -22,6 +23,7 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final ProductMapper     productMapper;
+    private final AuditService      auditService;
 
     @Override
     @Transactional
@@ -29,8 +31,10 @@ public class ProductServiceImpl implements ProductService {
         if (productRepository.existsByCode(request.getCode())) {
             throw new ProductCodeAlreadyExistsException(request.getCode());
         }
-        var product = productMapper.toEntity(request);
-        return productMapper.toResponse(productRepository.save(product));
+        var product  = productMapper.toEntity(request);
+        var response = productMapper.toResponse(productRepository.save(product));
+        auditService.register("CREATE_PRODUCT", "Product", response.getId(), null, response);
+        return response;
     }
 
     @Override
@@ -51,10 +55,13 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductResponse updateProduct(UUID id, UpdateProductRequest request) {
-        var product = productRepository.findById(id)
+        var product  = productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
+        var oldValue = productMapper.toResponse(product);
         productMapper.updateEntity(request, product);
-        return productMapper.toResponse(productRepository.save(product));
+        var response = productMapper.toResponse(productRepository.save(product));
+        auditService.register("UPDATE_PRODUCT", "Product", id, oldValue, response);
+        return response;
     }
 
     @Override
@@ -64,6 +71,7 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ProductNotFoundException(id));
         product.setActive(false);
         productRepository.save(product);
+        auditService.register("DEACTIVATE_PRODUCT", "Product", id, null, null);
     }
 
     @Override
@@ -73,5 +81,6 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ProductNotFoundException(id));
         product.setActive(true);
         productRepository.save(product);
+        auditService.register("ACTIVATE_PRODUCT", "Product", id, null, null);
     }
 }

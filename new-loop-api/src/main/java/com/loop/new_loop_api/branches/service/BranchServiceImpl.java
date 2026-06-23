@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.branches.service;
 
+import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.branches.dto.BranchResponse;
 import com.loop.new_loop_api.branches.dto.CreateBranchRequest;
 import com.loop.new_loop_api.branches.dto.UpdateBranchRequest;
@@ -21,7 +22,8 @@ import java.util.UUID;
 public class BranchServiceImpl implements BranchService {
 
     private final BranchRepository branchRepository;
-    private final BranchMapper branchMapper;
+    private final BranchMapper     branchMapper;
+    private final AuditService     auditService;
 
     @Override
     @Transactional
@@ -29,8 +31,10 @@ public class BranchServiceImpl implements BranchService {
         if (branchRepository.existsByCode(request.getCode())) {
             throw new BranchCodeAlreadyExistsException(request.getCode());
         }
-        var branch = branchMapper.toEntity(request);
-        return branchMapper.toResponse(branchRepository.save(branch));
+        var branch   = branchMapper.toEntity(request);
+        var response = branchMapper.toResponse(branchRepository.save(branch));
+        auditService.register("CREATE_BRANCH", "Branch", response.getId(), null, response);
+        return response;
     }
 
     @Override
@@ -51,10 +55,13 @@ public class BranchServiceImpl implements BranchService {
     @Override
     @Transactional
     public BranchResponse updateBranch(UUID id, UpdateBranchRequest request) {
-        var branch = branchRepository.findById(id)
+        var branch   = branchRepository.findById(id)
                 .orElseThrow(() -> new BranchNotFoundException(id));
+        var oldValue = branchMapper.toResponse(branch);
         branchMapper.updateEntity(request, branch);
-        return branchMapper.toResponse(branchRepository.save(branch));
+        var response = branchMapper.toResponse(branchRepository.save(branch));
+        auditService.register("UPDATE_BRANCH", "Branch", id, oldValue, response);
+        return response;
     }
 
     @Override
@@ -64,6 +71,7 @@ public class BranchServiceImpl implements BranchService {
                 .orElseThrow(() -> new BranchNotFoundException(id));
         branch.setActive(false);
         branchRepository.save(branch);
+        auditService.register("DEACTIVATE_BRANCH", "Branch", id, null, null);
     }
 
     @Override
@@ -73,5 +81,6 @@ public class BranchServiceImpl implements BranchService {
                 .orElseThrow(() -> new BranchNotFoundException(id));
         branch.setActive(true);
         branchRepository.save(branch);
+        auditService.register("ACTIVATE_BRANCH", "Branch", id, null, null);
     }
 }

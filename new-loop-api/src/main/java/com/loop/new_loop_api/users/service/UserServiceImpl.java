@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.users.service;
 
+import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.users.dto.CreateUserRequest;
 import com.loop.new_loop_api.users.dto.UpdateUserRequest;
 import com.loop.new_loop_api.users.dto.UserResponse;
@@ -28,6 +29,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     private final UserRepository  userRepository;
     private final UserMapper      userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService    auditService;
 
     @Override
     @Transactional
@@ -35,8 +37,10 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new UsernameAlreadyExistsException(request.getUsername());
         }
-        var user = userMapper.toEntity(request, passwordEncoder.encode(request.getPassword()));
-        return userMapper.toResponse(userRepository.save(user));
+        var user     = userMapper.toEntity(request, passwordEncoder.encode(request.getPassword()));
+        var response = userMapper.toResponse(userRepository.save(user));
+        auditService.register("CREATE_USER", "User", response.getId(), null, response);
+        return response;
     }
 
     @Override
@@ -57,13 +61,16 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     @Override
     @Transactional
     public UserResponse updateUser(UUID id, UpdateUserRequest request) {
-        var user = userRepository.findById(id)
+        var user          = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
+        var oldValue      = userMapper.toResponse(user);
         var hashedPassword = request.getPassword() != null
                 ? passwordEncoder.encode(request.getPassword())
                 : null;
         userMapper.updateEntity(request, user, hashedPassword);
-        return userMapper.toResponse(userRepository.save(user));
+        var response = userMapper.toResponse(userRepository.save(user));
+        auditService.register("UPDATE_USER", "User", id, oldValue, response);
+        return response;
     }
 
     @Override
@@ -73,6 +80,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
                 .orElseThrow(() -> new UserNotFoundException(id));
         user.setActive(false);
         userRepository.save(user);
+        auditService.register("DEACTIVATE_USER", "User", id, null, null);
     }
 
     @Override
@@ -82,6 +90,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
                 .orElseThrow(() -> new UserNotFoundException(id));
         user.setActive(true);
         userRepository.save(user);
+        auditService.register("ACTIVATE_USER", "User", id, null, null);
     }
 
     @Override
