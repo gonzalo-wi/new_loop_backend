@@ -1,0 +1,73 @@
+package com.loop.new_loop_api.stockcontrols.controller;
+
+import com.loop.new_loop_api.common.response.ApiResponse;
+import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
+import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
+import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
+import com.loop.new_loop_api.stockcontrols.entity.ControlType;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/stock-controls")
+@RequiredArgsConstructor
+public class StockControlController {
+
+    private final StockControlService stockControlService;
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<StockControlResponse>> createControl(
+            @Valid @RequestBody CreateStockControlRequest request) {
+        var response = stockControlService.createControl(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(response, "Stock control created successfully"));
+    }
+
+    
+    @GetMapping
+    public ResponseEntity<ApiResponse<Page<StockControlResponse>>> getAllControls(
+            @RequestParam(required = false) ControlType type,
+            @RequestParam(required = false) ControlStatus status,
+            @RequestParam(required = false) UUID routeId,
+            @RequestParam(required = false) UUID controllerId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        var page = stockControlService.getAllControls(type, status, routeId, controllerId, from, to, pageable);
+        return ResponseEntity.ok(ApiResponse.ok(page, "Stock controls retrieved successfully"));
+    }
+
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<StockControlResponse>> getControlById(@PathVariable UUID id) {
+        var response = stockControlService.getControlById(id);
+        return ResponseEntity.ok(ApiResponse.ok(response, "Stock control retrieved successfully"));
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<ApiResponse<StockControlResponse>> updateControl(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateStockControlRequest request) {
+        var response = stockControlService.updateControl(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(response, "Stock control updated successfully"));
+    }
+
+    @PostMapping("/{id}/confirm")
+    public ResponseEntity<ApiResponse<StockControlResponse>> confirmControl(@PathVariable UUID id) {
+        var response = stockControlService.confirmControl(id);
+        return ResponseEntity.ok(ApiResponse.ok(response, "Stock control confirmed successfully"));
+    }
+}

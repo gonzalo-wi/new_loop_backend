@@ -15,7 +15,8 @@ public class RouteResponse {
     private UUID          branchId;
     private String        branchName;
     private String        branchCode;
-    private String        driver;
+    private UUID          driverId;
+    private String        driverName;
     private String        truckPlate;
     private Boolean       active;
     private String        observations;

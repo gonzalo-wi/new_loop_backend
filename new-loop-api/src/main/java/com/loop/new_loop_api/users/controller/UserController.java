@@ -2,6 +2,7 @@ package com.loop.new_loop_api.users.controller;
 
 import com.loop.new_loop_api.common.response.ApiResponse;
 import com.loop.new_loop_api.users.dto.CreateUserRequest;
+import com.loop.new_loop_api.users.dto.UpdateFcmTokenRequest;
 import com.loop.new_loop_api.users.dto.UpdateUserRequest;
 import com.loop.new_loop_api.users.dto.UserResponse;
 import com.loop.new_loop_api.users.service.iService.UserService;
@@ -63,5 +64,13 @@ public class UserController {
     public ResponseEntity<Void> activateUser(@PathVariable UUID id) {
         userService.activateUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/fcm-token")
+    public ResponseEntity<ApiResponse<Void>> updateFcmToken(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateFcmTokenRequest request) {
+        userService.updateFcmToken(id, request.getFcmToken());
+        return ResponseEntity.ok(ApiResponse.ok(null, "FCM token updated successfully"));
     }
 }

@@ -16,4 +16,5 @@ public interface UserService {
     UserResponse updateUser(UUID id, UpdateUserRequest request);
     void deactivateUser(UUID id);
     void activateUser(UUID id);
+    void updateFcmToken(UUID id, String fcmToken);
 }

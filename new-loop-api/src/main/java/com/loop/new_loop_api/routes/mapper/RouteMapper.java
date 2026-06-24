@@ -5,16 +5,17 @@ import com.loop.new_loop_api.routes.dto.CreateRouteRequest;
 import com.loop.new_loop_api.routes.dto.RouteResponse;
 import com.loop.new_loop_api.routes.dto.UpdateRouteRequest;
 import com.loop.new_loop_api.routes.entity.Route;
+import com.loop.new_loop_api.users.entity.User;
 import org.springframework.stereotype.Component;
 
 @Component
 public class RouteMapper {
 
-    public Route toEntity(CreateRouteRequest request, Branch branch) {
+    public Route toEntity(CreateRouteRequest request, Branch branch, User driver) {
         return Route.builder()
                 .code(request.getCode())
                 .branch(branch)
-                .driver(request.getDriver())
+                .driver(driver)
                 .truckPlate(request.getTruckPlate())
                 .observations(request.getObservations())
                 .active(true)
@@ -28,7 +29,8 @@ public class RouteMapper {
                 .branchId(route.getBranch().getId())
                 .branchName(route.getBranch().getName())
                 .branchCode(route.getBranch().getCode())
-                .driver(route.getDriver())
+                .driverId(route.getDriver() != null ? route.getDriver().getId() : null)
+                .driverName(route.getDriver() != null ? route.getDriver().getName() : null)
                 .truckPlate(route.getTruckPlate())
                 .active(route.getActive())
                 .observations(route.getObservations())
@@ -37,10 +39,10 @@ public class RouteMapper {
                 .build();
     }
 
-    public void updateEntity(UpdateRouteRequest request, Route route, Branch branch) {
-        if (branch != null)                    route.setBranch(branch);
-        if (request.getDriver() != null)       route.setDriver(request.getDriver());
-        if (request.getTruckPlate() != null)   route.setTruckPlate(request.getTruckPlate());
+    public void updateEntity(UpdateRouteRequest request, Route route, Branch branch, User driver) {
+        if (branch  != null)                   route.setBranch(branch);
+        if (driver  != null)                   route.setDriver(driver);
+        if (request.getTruckPlate()  != null)  route.setTruckPlate(request.getTruckPlate());
         if (request.getObservations() != null) route.setObservations(request.getObservations());
     }
 }

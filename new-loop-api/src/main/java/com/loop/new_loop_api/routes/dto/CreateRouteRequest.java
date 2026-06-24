@@ -17,8 +17,7 @@ public class CreateRouteRequest {
     @NotNull(message = "Branch is required")
     private UUID branchId;
 
-    @Size(max = 150, message = "Driver must not exceed 150 characters")
-    private String driver;
+    private UUID driverId;
 
     @Size(max = 20, message = "Truck plate must not exceed 20 characters")
     private String truckPlate;

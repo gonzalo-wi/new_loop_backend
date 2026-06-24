@@ -35,6 +35,9 @@ public class User {
     @Column(name = "role", nullable = false)
     private Role role;
 
+    @Column(name = "fcm_token")
+    private String fcmToken;
+
     @Column(name = "active", nullable = false)
     @Builder.Default
     private Boolean active = true;

@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.routes.entity;
 
 import com.loop.new_loop_api.branches.entity.Branch;
+import com.loop.new_loop_api.users.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -29,8 +30,9 @@ public class Route {
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
 
-    @Column(length = 150)
-    private String driver;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "driver_id")
+    private User driver;
 
     @Column(name = "truck_plate", length = 20)
     private String truckPlate;

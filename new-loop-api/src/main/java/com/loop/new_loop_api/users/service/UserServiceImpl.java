@@ -84,6 +84,14 @@ public class UserServiceImpl implements UserService {
         auditService.register("ACTIVATE_USER", "User", id, null, null);
     }
 
+    @Override
+    @Transactional
+    public void updateFcmToken(UUID id, String fcmToken) {
+        var user = findUserById(id);
+        user.setFcmToken(fcmToken);
+        userRepository.save(user);
+    }
+
     private User findUserById(UUID id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
