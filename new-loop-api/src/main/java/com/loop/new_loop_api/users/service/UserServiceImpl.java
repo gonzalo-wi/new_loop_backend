@@ -4,6 +4,7 @@ import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.users.dto.CreateUserRequest;
 import com.loop.new_loop_api.users.dto.UpdateUserRequest;
 import com.loop.new_loop_api.users.dto.UserResponse;
+import com.loop.new_loop_api.users.entity.User;
 import com.loop.new_loop_api.users.exception.UserNotFoundException;
 import com.loop.new_loop_api.users.exception.UsernameAlreadyExistsException;
 import com.loop.new_loop_api.users.mapper.UserMapper;
@@ -12,19 +13,14 @@ import com.loop.new_loop_api.users.service.iService.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class UserServiceImpl implements UserService, UserDetailsService {
+public class UserServiceImpl implements UserService {
 
     private final UserRepository  userRepository;
     private final UserMapper      userMapper;
@@ -53,17 +49,14 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserResponse getUserById(UUID id) {
-        return userRepository.findById(id)
-                .map(userMapper::toResponse)
-                .orElseThrow(() -> new UserNotFoundException(id));
+        return userMapper.toResponse(findUserById(id));
     }
 
     @Override
     @Transactional
     public UserResponse updateUser(UUID id, UpdateUserRequest request) {
-        var user          = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException(id));
-        var oldValue      = userMapper.toResponse(user);
+        var user           = findUserById(id);
+        var oldValue       = userMapper.toResponse(user);
         var hashedPassword = request.getPassword() != null
                 ? passwordEncoder.encode(request.getPassword())
                 : null;
@@ -76,8 +69,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     @Override
     @Transactional
     public void deactivateUser(UUID id) {
-        var user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException(id));
+        var user = findUserById(id);
         user.setActive(false);
         userRepository.save(user);
         auditService.register("DEACTIVATE_USER", "User", id, null, null);
@@ -86,22 +78,14 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     @Override
     @Transactional
     public void activateUser(UUID id) {
-        var user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException(id));
+        var user = findUserById(id);
         user.setActive(true);
         userRepository.save(user);
         auditService.register("ACTIVATE_USER", "User", id, null, null);
     }
 
-    @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        var user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
-        return User.builder()
-                .username(user.getUsername())
-                .password(user.getPassword())
-                .roles(user.getRole().name())
-                .disabled(!user.getActive())
-                .build();
+    private User findUserById(UUID id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException(id));
     }
 }

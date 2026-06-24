@@ -8,6 +8,7 @@ import com.loop.new_loop_api.branches.exception.BranchCodeAlreadyExistsException
 import com.loop.new_loop_api.branches.exception.BranchNotFoundException;
 import com.loop.new_loop_api.branches.mapper.BranchMapper;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
+import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.branches.service.iService.BranchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -47,16 +48,13 @@ public class BranchServiceImpl implements BranchService {
     @Override
     @Transactional(readOnly = true)
     public BranchResponse getBranchById(UUID id) {
-        return branchRepository.findById(id)
-                .map(branchMapper::toResponse)
-                .orElseThrow(() -> new BranchNotFoundException(id));
+        return branchMapper.toResponse(findBranchById(id));
     }
 
     @Override
     @Transactional
     public BranchResponse updateBranch(UUID id, UpdateBranchRequest request) {
-        var branch   = branchRepository.findById(id)
-                .orElseThrow(() -> new BranchNotFoundException(id));
+        var branch   = findBranchById(id);
         var oldValue = branchMapper.toResponse(branch);
         branchMapper.updateEntity(request, branch);
         var response = branchMapper.toResponse(branchRepository.save(branch));
@@ -67,8 +65,7 @@ public class BranchServiceImpl implements BranchService {
     @Override
     @Transactional
     public void deactivateBranch(UUID id) {
-        var branch = branchRepository.findById(id)
-                .orElseThrow(() -> new BranchNotFoundException(id));
+        var branch = findBranchById(id);
         branch.setActive(false);
         branchRepository.save(branch);
         auditService.register("DEACTIVATE_BRANCH", "Branch", id, null, null);
@@ -77,10 +74,14 @@ public class BranchServiceImpl implements BranchService {
     @Override
     @Transactional
     public void activateBranch(UUID id) {
-        var branch = branchRepository.findById(id)
-                .orElseThrow(() -> new BranchNotFoundException(id));
+        var branch = findBranchById(id);
         branch.setActive(true);
         branchRepository.save(branch);
         auditService.register("ACTIVATE_BRANCH", "Branch", id, null, null);
+    }
+
+    private Branch findBranchById(UUID id) {
+        return branchRepository.findById(id)
+                .orElseThrow(() -> new BranchNotFoundException(id));
     }
 }
