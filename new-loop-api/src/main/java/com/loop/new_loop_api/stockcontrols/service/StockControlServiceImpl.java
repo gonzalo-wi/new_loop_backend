@@ -10,6 +10,7 @@ import com.loop.new_loop_api.products.repository.ProductRepository;
 import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.routes.exception.RouteNotFoundException;
 import com.loop.new_loop_api.routes.repository.RouteRepository;
+import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlItemRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
@@ -18,6 +19,8 @@ import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
 import com.loop.new_loop_api.stockcontrols.entity.ControlType;
 import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
+import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
+import com.loop.new_loop_api.stockcontrols.exception.DuplicateControlException;
 import com.loop.new_loop_api.stockcontrols.exception.InactiveProductException;
 import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotFoundException;
@@ -26,6 +29,7 @@ import com.loop.new_loop_api.stockcontrols.mapper.StockControlMapper;
 import com.loop.new_loop_api.stockcontrols.repository.StockControlRepository;
 import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -49,6 +53,7 @@ public class StockControlServiceImpl implements StockControlService {
     private final RouteRepository        routeRepository;
     private final ProductRepository      productRepository;
     private final AuditService           auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -56,12 +61,31 @@ public class StockControlServiceImpl implements StockControlService {
         var branch   = findBranchById(request.getBranchId());
         var route    = findRouteById(request.getRouteId());
         var date     = resolveControlDate(request.getType(), request.getControlDate());
+
+        // A route can only have one active control of each type (ENTRY / EXIT) per day.
+        if (stockControlRepository.existsByTypeAndRouteIdAndControlDateAndStatusNot(
+                request.getType(), route.getId(), date, ControlStatus.CANCELLED)) {
+            throw new DuplicateControlException(request.getType(), route.getId(), date);
+        }
+
         var control  = stockControlMapper.toEntity(request, branch, route, date);
-        var items    = buildItems(request.getItems(), control);
-        control.getItems().addAll(items);
+        control.getItems().addAll(buildItems(request.getItems(), control));
+
+        // ENTRY controls are sent to the driver for approval as soon as they are created;
+        // EXIT controls stay as CONTROLLED and are not shown to the driver.
+        if (request.getType() == ControlType.ENTRY) {
+            control.setStatus(ControlStatus.PENDING_DRIVER_APPROVAL);
+            control.setConfirmedAt(LocalDateTime.now());
+        }
+
         var saved    = stockControlRepository.save(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register("CREATE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
+
+        // EXIT controls are sent to Aguas as soon as they are created (no driver approval needed).
+        if (saved.getType() == ControlType.EXIT) {
+            eventPublisher.publishEvent(new StockControlReadyForAguasEvent(saved.getId()));
+        }
         return response;
     }
 
@@ -85,13 +109,15 @@ public class StockControlServiceImpl implements StockControlService {
     @Transactional
     public StockControlResponse updateControl(UUID id, UpdateStockControlRequest request) {
         var control = findControlById(id);
-        if (control.getStatus() != ControlStatus.CONTROLLED) {
+        if (control.getStatus() != ControlStatus.CONTROLLED
+                && control.getStatus() != ControlStatus.PENDING_DRIVER_APPROVAL) {
             throw new StockControlNotModifiableException(id, control.getStatus());
         }
         var oldValue = stockControlMapper.toResponse(control);
         stockControlMapper.updateEntity(request, control);
         if (request.getItems() != null) {
             control.getItems().clear();
+            stockControlRepository.saveAndFlush(control);
             control.getItems().addAll(buildItems(request.getItems(), control));
         }
         var saved    = stockControlRepository.save(control);
@@ -102,17 +128,42 @@ public class StockControlServiceImpl implements StockControlService {
 
     @Override
     @Transactional
-    public StockControlResponse confirmControl(UUID id) {
+    public StockControlResponse approveControl(UUID id) {
         var control = findControlById(id);
-        if (control.getStatus() != ControlStatus.CONTROLLED) {
-            throw new InvalidControlStatusException(id, ControlStatus.CONTROLLED, control.getStatus());
+        if (control.getStatus() != ControlStatus.PENDING_DRIVER_APPROVAL) {
+            throw new InvalidControlStatusException(id, ControlStatus.PENDING_DRIVER_APPROVAL, control.getStatus());
         }
-        control.setStatus(ControlStatus.PENDING_DRIVER_APPROVAL);
-        control.setConfirmedAt(LocalDateTime.now());
+        control.setStatus(ControlStatus.ACCEPTED_BY_DRIVER);
+        control.setApprovedAt(LocalDateTime.now());
         var saved    = stockControlRepository.save(control);
         var response = stockControlMapper.toResponse(saved);
-        auditService.register("CONFIRM_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
+        auditService.register("APPROVE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
+
+        // Once the driver approves an ENTRY control it is sent to Aguas.
+        eventPublisher.publishEvent(new StockControlReadyForAguasEvent(saved.getId()));
         return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ArrivalsSummaryResponse getPendingArrivals(LocalDate date) {
+        var targetDate = date != null ? date : LocalDate.now();
+
+        var exits           = stockControlRepository.findControlsForDate(ControlType.EXIT, targetDate, ControlStatus.CANCELLED);
+        var arrivedRouteIds = stockControlRepository.findRouteIdsForDate(ControlType.ENTRY, targetDate, ControlStatus.CANCELLED);
+
+        var pending = exits.stream()
+                .filter(exit -> !arrivedRouteIds.contains(exit.getRoute().getId()))
+                .map(stockControlMapper::toPendingArrival)
+                .toList();
+
+        return ArrivalsSummaryResponse.builder()
+                .date(targetDate)
+                .totalExpected(exits.size())
+                .arrived(exits.size() - pending.size())
+                .pending(pending.size())
+                .pendingRoutes(pending)
+                .build();
     }
 
     private List<StockControlItem> buildItems(List<CreateStockControlItemRequest> requests, StockControl control) {

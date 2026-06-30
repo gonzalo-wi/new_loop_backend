@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.stockcontrols.service.iService;
 
+import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
@@ -17,5 +18,6 @@ public interface StockControlService {
     Page<StockControlResponse> getAllControls(ControlType type, ControlStatus status, UUID routeId, UUID controllerId, LocalDate from, LocalDate to, Pageable pageable);
     StockControlResponse getControlById(UUID id);
     StockControlResponse updateControl(UUID id, UpdateStockControlRequest request);
-    StockControlResponse confirmControl(UUID id);
+    StockControlResponse approveControl(UUID id);
+    ArrivalsSummaryResponse getPendingArrivals(LocalDate date);
 }

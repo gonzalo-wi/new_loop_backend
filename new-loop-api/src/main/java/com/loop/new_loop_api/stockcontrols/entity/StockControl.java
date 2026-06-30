@@ -49,6 +49,10 @@ public class StockControl {
     @Column(nullable = false)
     private LocalDate controlDate;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean truckOrdered = true;
+
     @Column(length = 500)
     private String observations;
 
@@ -57,6 +61,7 @@ public class StockControl {
     private List<StockControlItem> items = new ArrayList<>();
 
     private LocalDateTime confirmedAt;
+    private LocalDateTime approvedAt;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

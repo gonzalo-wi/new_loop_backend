@@ -19,6 +19,8 @@ public class UpdateStockControlRequest {
 
     private LocalDate controlDate;
 
+    private Boolean truckOrdered;
+
     @Size(max = 500, message = "Observations cannot exceed 500 characters")
     private String observations;
 

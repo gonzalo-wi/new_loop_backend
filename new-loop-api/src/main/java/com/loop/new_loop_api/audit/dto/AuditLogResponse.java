@@ -12,6 +12,7 @@ public class AuditLogResponse {
 
     private UUID          id;
     private UUID          userId;
+    private String        username;
     private String        userRole;
     private String        action;
     private String        entityName;

@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.stockcontrols.controller;
 
 import com.loop.new_loop_api.common.response.ApiResponse;
+import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
@@ -51,6 +52,13 @@ public class StockControlController {
     }
 
 
+    @GetMapping("/pending-arrivals")
+    public ResponseEntity<ApiResponse<ArrivalsSummaryResponse>> getPendingArrivals(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        var summary = stockControlService.getPendingArrivals(date);
+        return ResponseEntity.ok(ApiResponse.ok(summary, "Pending arrivals retrieved successfully"));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<StockControlResponse>> getControlById(@PathVariable UUID id) {
         var response = stockControlService.getControlById(id);
@@ -65,9 +73,9 @@ public class StockControlController {
         return ResponseEntity.ok(ApiResponse.ok(response, "Stock control updated successfully"));
     }
 
-    @PostMapping("/{id}/confirm")
-    public ResponseEntity<ApiResponse<StockControlResponse>> confirmControl(@PathVariable UUID id) {
-        var response = stockControlService.confirmControl(id);
-        return ResponseEntity.ok(ApiResponse.ok(response, "Stock control confirmed successfully"));
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<StockControlResponse>> approveControl(@PathVariable UUID id) {
+        var response = stockControlService.approveControl(id);
+        return ResponseEntity.ok(ApiResponse.ok(response, "Stock control approved successfully"));
     }
 }

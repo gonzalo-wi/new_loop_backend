@@ -20,6 +20,7 @@ public class AuditLog {
     private UUID id;
 
     private UUID   userId;
+    private String username;
     private String userRole;
 
     @Column(nullable = false, length = 100)

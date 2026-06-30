@@ -39,6 +39,7 @@ public class BranchMapper {
     }
 
     public void updateEntity(UpdateBranchRequest request, Branch branch) {
+        if (request.getCode() != null)         branch.setCode(request.getCode());
         if (request.getName() != null)         branch.setName(request.getName());
         if (request.getAddress() != null)      branch.setAddress(request.getAddress());
         if (request.getLocality() != null)     branch.setLocality(request.getLocality());

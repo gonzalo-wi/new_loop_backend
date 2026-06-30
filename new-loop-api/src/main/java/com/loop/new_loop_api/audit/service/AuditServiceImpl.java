@@ -8,10 +8,12 @@ import com.loop.new_loop_api.audit.mapper.AuditLogMapper;
 import com.loop.new_loop_api.audit.repository.AuditLogRepository;
 import com.loop.new_loop_api.audit.repository.AuditLogSpecification;
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.common.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,7 @@ public class AuditServiceImpl implements AuditService {
     public void register(String action, String entityName, UUID entityId, Object oldValue, Object newValue) {
         var log = AuditLog.builder()
                 .userId(getCurrentUserId())
+                .username(getCurrentUsername())
                 .userRole(getCurrentUserRole())
                 .action(action)
                 .entityName(entityName)
@@ -57,12 +60,25 @@ public class AuditServiceImpl implements AuditService {
     }
 
     private UUID getCurrentUserId() {
-        // TODO: extract from SecurityContext once JWT filter is implemented
-        return null;
+        var user = currentUser();
+        return user != null ? user.id() : null;
+    }
+
+    private String getCurrentUsername() {
+        var user = currentUser();
+        return user != null ? user.username() : null;
     }
 
     private String getCurrentUserRole() {
-        // TODO: extract from SecurityContext once JWT filter is implemented
+        var user = currentUser();
+        return user != null ? user.role().name() : null;
+    }
+
+    private AuthenticatedUser currentUser() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof AuthenticatedUser user) {
+            return user;
+        }
         return null;
     }
 

@@ -5,6 +5,7 @@ import com.loop.new_loop_api.products.entity.Product;
 import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlItemRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.dto.PendingArrivalResponse;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlItemResponse;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
@@ -24,6 +25,7 @@ public class StockControlMapper {
                 .route(route)
                 .controllerId(request.getControllerId())
                 .controlDate(controlDate)
+                .truckOrdered(request.getTruckOrdered() != null ? request.getTruckOrdered() : true)
                 .observations(request.getObservations())
                 .build();
     }
@@ -43,18 +45,21 @@ public class StockControlMapper {
                 .routeCode(control.getRoute().getCode())
                 .controllerId(control.getControllerId())
                 .controlDate(control.getControlDate())
+                .truckOrdered(control.getTruckOrdered())
                 .observations(control.getObservations())
                 .items(items)
                 .confirmedAt(control.getConfirmedAt())
+                .approvedAt(control.getApprovedAt())
                 .createdAt(control.getCreatedAt())
                 .updatedAt(control.getUpdatedAt())
                 .build();
     }
 
     public void updateEntity(UpdateStockControlRequest request, StockControl control) {
-        if (request.getControllerId() != null) control.setControllerId(request.getControllerId());
-        if (request.getControlDate()  != null) control.setControlDate(request.getControlDate());
-        if (request.getObservations() != null) control.setObservations(request.getObservations());
+        if (request.getControllerId()  != null) control.setControllerId(request.getControllerId());
+        if (request.getControlDate()   != null) control.setControlDate(request.getControlDate());
+        if (request.getTruckOrdered()  != null) control.setTruckOrdered(request.getTruckOrdered());
+        if (request.getObservations()  != null) control.setObservations(request.getObservations());
     }
 
     public StockControlItem toItem(CreateStockControlItemRequest request, Product product, StockControl control) {
@@ -65,6 +70,17 @@ public class StockControlMapper {
                 .fullQuantity(request.getFullQuantity())
                 .exchangeQuantity(request.getExchangeQuantity())
                 .observations(request.getObservations())
+                .build();
+    }
+
+    public PendingArrivalResponse toPendingArrival(StockControl control) {
+        return PendingArrivalResponse.builder()
+                .routeId(control.getRoute().getId())
+                .routeCode(control.getRoute().getCode())
+                .branchId(control.getBranch().getId())
+                .branchName(control.getBranch().getName())
+                .exitControlId(control.getId())
+                .controlDate(control.getControlDate())
                 .build();
     }
 

@@ -11,6 +11,7 @@ public class AuditLogMapper {
         return AuditLogResponse.builder()
                 .id(log.getId())
                 .userId(log.getUserId())
+                .username(log.getUsername())
                 .userRole(log.getUserRole())
                 .action(log.getAction())
                 .entityName(log.getEntityName())

@@ -1,0 +1,1 @@
+ALTER TABLE stock_controls ADD COLUMN truck_ordered BOOLEAN NOT NULL DEFAULT TRUE;

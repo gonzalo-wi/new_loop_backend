@@ -23,9 +23,11 @@ public class StockControlResponse {
     private String                         routeCode;
     private UUID                           controllerId;
     private LocalDate                      controlDate;
+    private Boolean                        truckOrdered;
     private String                         observations;
     private List<StockControlItemResponse> items;
     private LocalDateTime                  confirmedAt;
+    private LocalDateTime                  approvedAt;
     private LocalDateTime                  createdAt;
     private LocalDateTime                  updatedAt;
 }

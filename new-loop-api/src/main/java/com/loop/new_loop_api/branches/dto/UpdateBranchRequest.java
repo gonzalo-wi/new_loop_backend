@@ -6,6 +6,9 @@ import lombok.Getter;
 @Getter
 public class UpdateBranchRequest {
 
+    @Size(max = 50, message = "Code must not exceed 50 characters")
+    private String code;
+
     @Size(max = 150, message = "Name must not exceed 150 characters")
     private String name;
 

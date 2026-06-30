@@ -56,6 +56,10 @@ public class BranchServiceImpl implements BranchService {
     public BranchResponse updateBranch(UUID id, UpdateBranchRequest request) {
         var branch   = findBranchById(id);
         var oldValue = branchMapper.toResponse(branch);
+        if (request.getCode() != null && !request.getCode().equals(branch.getCode())
+                && branchRepository.existsByCode(request.getCode())) {
+            throw new BranchCodeAlreadyExistsException(request.getCode());
+        }
         branchMapper.updateEntity(request, branch);
         var response = branchMapper.toResponse(branchRepository.save(branch));
         auditService.register("UPDATE_BRANCH", "Branch", id, oldValue, response);
