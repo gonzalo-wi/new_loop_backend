@@ -1,28 +1,9 @@
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: loop-api-db
-    environment:
-      POSTGRES_DB: ${DB_NAME:-loop_new_db}
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - loop_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME:-loop_new_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   app:
     build: .
     container_name: loop-api-app
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-loop_new_db}
+      DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
@@ -31,7 +12,7 @@ services:
     ports:
       # host:container  -> el puerto 8096 del servidor apunta al 8080 interno de la app
       - "8096:8080"
+    # Permite usar host.docker.internal en DB_URL para alcanzar una base en el propio servidor
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
-
-volumes:
-  loop_db_data:
