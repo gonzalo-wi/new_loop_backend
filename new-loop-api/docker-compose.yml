@@ -2,17 +2,16 @@ services:
   app:
     build: .
     container_name: loop-api-app
+    # Comparte la red del servidor: así el contenedor alcanza la base y Aguas
+    # igual que lo hace el host (evita el problema de ruteo del bridge de Docker).
+    network_mode: host
     environment:
+      # Con network_mode host no hay mapeo de puertos: la app escucha directo en este puerto del server
+      SERVER_PORT: 8096
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       AGUAS_BASE_URL: ${AGUAS_BASE_URL:-http://192.168.0.12}
       AGUAS_EQUIPMENT_BASE_URL: ${AGUAS_EQUIPMENT_BASE_URL:-http://192.168.0.58}
-    ports:
-      # host:container  -> el puerto 8096 del servidor apunta al 8080 interno de la app
-      - "8096:8080"
-    # Permite usar host.docker.internal en DB_URL para alcanzar una base en el propio servidor
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
