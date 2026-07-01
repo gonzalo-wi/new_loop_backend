@@ -27,15 +27,20 @@ Authorization: Bearer <token>
 
 ### Query params
 
-| Param  | Tipo | Requerido | Default | Descripción                          |
-|--------|------|-----------|---------|--------------------------------------|
-| `date` | date | No        | hoy     | Fecha a consultar (`YYYY-MM-DD`)     |
+| Param      | Tipo | Requerido | Default | Descripción                                          |
+|------------|------|-----------|---------|------------------------------------------------------|
+| `date`     | date | No        | hoy     | Fecha a consultar (`YYYY-MM-DD`)                     |
+| `branchId` | UUID | No        | todas   | Filtrar los faltantes por sucursal                  |
 
 **Ejemplos:**
 ```
 GET /stock-controls/pending-arrivals
 GET /stock-controls/pending-arrivals?date=2026-06-29
+GET /stock-controls/pending-arrivals?branchId=uuid-de-la-sucursal
+GET /stock-controls/pending-arrivals?date=2026-06-29&branchId=uuid-de-la-sucursal
 ```
+
+> Si se manda `branchId`, los contadores (`totalExpected`, `arrived`, `pending`) y la lista quedan acotados a esa sucursal.
 
 ---
 

@@ -1,6 +1,6 @@
 package com.loop.new_loop_api.integrations.aguas.scheduler;
 
-import com.loop.new_loop_api.integrations.aguas.service.iService.AguasIntegrationService;
+import com.loop.new_loop_api.integrations.aguas.service.AguasRetryDispatcher;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
@@ -18,7 +18,7 @@ public class AguasRetryScheduler {
     private static final Logger log = LoggerFactory.getLogger(AguasRetryScheduler.class);
 
     private final IntegrationLogRepository integrationLogRepository;
-    private final AguasIntegrationService  aguasIntegrationService;
+    private final AguasRetryDispatcher     aguasRetryDispatcher;
 
     @Value("${integrations.aguas.max-retries}")
     private int maxRetries;
@@ -34,7 +34,7 @@ public class AguasRetryScheduler {
         log.info("Retrying {} failed Aguas integration(s)", failed.size());
         failed.forEach(integrationLog -> {
             try {
-                aguasIntegrationService.retry(integrationLog.getId());
+                aguasRetryDispatcher.retry(integrationLog.getId());
             } catch (Exception e) {
                 log.error("Unexpected error retrying Aguas log {}: {}", integrationLog.getId(), e.getMessage());
             }

@@ -23,10 +23,12 @@ public interface StockControlRepository extends JpaRepository<StockControl, UUID
             join fetch sc.route
             join fetch sc.branch
             where sc.type = :type and sc.controlDate = :date and sc.status <> :excludedStatus
+              and (:branchId is null or sc.branch.id = :branchId)
             """)
     List<StockControl> findControlsForDate(@Param("type") ControlType type,
                                            @Param("date") LocalDate date,
-                                           @Param("excludedStatus") ControlStatus excludedStatus);
+                                           @Param("excludedStatus") ControlStatus excludedStatus,
+                                           @Param("branchId") UUID branchId);
 
     @Query("""
             select sc.route.id from StockControl sc

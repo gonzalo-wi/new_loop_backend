@@ -1,7 +1,7 @@
 package com.loop.new_loop_api.integrations.common.controller;
 
 import com.loop.new_loop_api.common.response.ApiResponse;
-import com.loop.new_loop_api.integrations.aguas.service.iService.AguasIntegrationService;
+import com.loop.new_loop_api.integrations.aguas.service.AguasRetryDispatcher;
 import com.loop.new_loop_api.integrations.common.dto.IntegrationLogResponse;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
@@ -23,8 +23,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class IntegrationLogController {
 
-    private final IntegrationLogService   integrationLogService;
-    private final AguasIntegrationService aguasIntegrationService;
+    private final IntegrationLogService  integrationLogService;
+    private final AguasRetryDispatcher   aguasRetryDispatcher;
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<IntegrationLogResponse>>> getAll(
@@ -45,7 +45,7 @@ public class IntegrationLogController {
 
     @PostMapping("/{id}/retry")
     public ResponseEntity<ApiResponse<IntegrationLogResponse>> retry(@PathVariable UUID id) {
-        aguasIntegrationService.retry(id);
+        aguasRetryDispatcher.retry(id);
         return ResponseEntity.ok(ApiResponse.ok(integrationLogService.getById(id), "Integration retried"));
     }
 }

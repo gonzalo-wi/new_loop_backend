@@ -19,5 +19,5 @@ public interface StockControlService {
     StockControlResponse getControlById(UUID id);
     StockControlResponse updateControl(UUID id, UpdateStockControlRequest request);
     StockControlResponse approveControl(UUID id);
-    ArrivalsSummaryResponse getPendingArrivals(LocalDate date);
+    ArrivalsSummaryResponse getPendingArrivals(LocalDate date, UUID branchId);
 }

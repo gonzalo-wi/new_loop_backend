@@ -146,10 +146,10 @@ public class StockControlServiceImpl implements StockControlService {
 
     @Override
     @Transactional(readOnly = true)
-    public ArrivalsSummaryResponse getPendingArrivals(LocalDate date) {
+    public ArrivalsSummaryResponse getPendingArrivals(LocalDate date, UUID branchId) {
         var targetDate = date != null ? date : LocalDate.now();
 
-        var exits           = stockControlRepository.findControlsForDate(ControlType.EXIT, targetDate, ControlStatus.CANCELLED);
+        var exits           = stockControlRepository.findControlsForDate(ControlType.EXIT, targetDate, ControlStatus.CANCELLED, branchId);
         var arrivedRouteIds = stockControlRepository.findRouteIdsForDate(ControlType.ENTRY, targetDate, ControlStatus.CANCELLED);
 
         var pending = exits.stream()

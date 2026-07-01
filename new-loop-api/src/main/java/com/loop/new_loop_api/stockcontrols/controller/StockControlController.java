@@ -54,8 +54,9 @@ public class StockControlController {
 
     @GetMapping("/pending-arrivals")
     public ResponseEntity<ApiResponse<ArrivalsSummaryResponse>> getPendingArrivals(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        var summary = stockControlService.getPendingArrivals(date);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) UUID branchId) {
+        var summary = stockControlService.getPendingArrivals(date, branchId);
         return ResponseEntity.ok(ApiResponse.ok(summary, "Pending arrivals retrieved successfully"));
     }
 
