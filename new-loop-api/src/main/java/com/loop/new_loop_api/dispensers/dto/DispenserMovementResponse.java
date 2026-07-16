@@ -24,6 +24,9 @@ public class DispenserMovementResponse {
     private DispenserMovementStatus status;
     private List<String>            serials;
     private String                  aguasMovementId;
+    private String                  odooStatus;
+    private Integer                 odooPickingId;
+    private String                  odooPickingName;
     private UUID                    registeredBy;
     private String                  registeredByUsername;
     private LocalDateTime           createdAt;

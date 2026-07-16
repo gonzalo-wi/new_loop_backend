@@ -28,6 +28,8 @@ public class StockControlResponse {
     private List<StockControlItemResponse> items;
     private LocalDateTime                  confirmedAt;
     private LocalDateTime                  approvedAt;
+    private String                         aguasFormulario;
+    private Long                           aguasNroRemito;
     private LocalDateTime                  createdAt;
     private LocalDateTime                  updatedAt;
 }

@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-/** Reads the authenticated user from the SecurityContext for use in business logic. */
+
 @Component
 public class CurrentUserProvider {
 

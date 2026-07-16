@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.orders.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.common.service.ActivationService;
 import com.loop.new_loop_api.orders.dto.CreateOrderableProductRequest;
 import com.loop.new_loop_api.orders.dto.OrderableProductResponse;
 import com.loop.new_loop_api.orders.dto.UpdateOrderableProductRequest;
@@ -25,13 +26,12 @@ public class OrderableProductServiceImpl implements OrderableProductService {
     private final OrderableProductRepository orderableProductRepository;
     private final OrderableProductMapper     orderableProductMapper;
     private final AuditService               auditService;
+    private final ActivationService          activationService;
 
     @Override
     @Transactional
     public OrderableProductResponse createProduct(CreateOrderableProductRequest request) {
-        if (orderableProductRepository.existsByCode(request.getCode())) {
-            throw new ProductCodeAlreadyExistsException(request.getCode());
-        }
+        validateCodeIsAvailable(request.getCode());
         var product  = orderableProductMapper.toEntity(request);
         var saved    = orderableProductRepository.save(product);
         var response = orderableProductMapper.toResponse(saved);
@@ -68,19 +68,21 @@ public class OrderableProductServiceImpl implements OrderableProductService {
     @Override
     @Transactional
     public void deactivateProduct(UUID id) {
-        var product = findProductById(id);
-        product.setActive(false);
-        orderableProductRepository.save(product);
-        auditService.register("DEACTIVATE_ORDERABLE_PRODUCT", "OrderableProduct", id, null, null);
+        activationService.setActive(orderableProductRepository, findProductById(id), id, false,
+                "OrderableProduct", "DEACTIVATE_ORDERABLE_PRODUCT");
     }
 
     @Override
     @Transactional
     public void activateProduct(UUID id) {
-        var product = findProductById(id);
-        product.setActive(true);
-        orderableProductRepository.save(product);
-        auditService.register("ACTIVATE_ORDERABLE_PRODUCT", "OrderableProduct", id, null, null);
+        activationService.setActive(orderableProductRepository, findProductById(id), id, true,
+                "OrderableProduct", "ACTIVATE_ORDERABLE_PRODUCT");
+    }
+
+    private void validateCodeIsAvailable(String code) {
+        if (orderableProductRepository.existsByCode(code)) {
+            throw new ProductCodeAlreadyExistsException(code);
+        }
     }
 
     private OrderableProduct findProductById(UUID id) {

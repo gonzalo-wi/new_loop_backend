@@ -30,6 +30,7 @@ public class BranchController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(branchService.createBranch(request)));
     }
 
+
     @Parameters({
             @Parameter(name = "page",  description = "Page number (0-indexed)", example = "0"),
             @Parameter(name = "size",  description = "Page size",               example = "20"),
@@ -41,10 +42,13 @@ public class BranchController {
         return ResponseEntity.ok(ApiResponse.ok(branchService.getAllBranches(pageable)));
     }
 
+
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<BranchResponse>> getBranchById(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(branchService.getBranchById(id)));
     }
+
 
     @PatchMapping("/{id}")
     public ResponseEntity<ApiResponse<BranchResponse>> updateBranch(
@@ -53,12 +57,14 @@ public class BranchController {
         return ResponseEntity.ok(ApiResponse.ok(branchService.updateBranch(id, request)));
     }
 
+
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<Void> deactivateBranch(@PathVariable UUID id) {
         branchService.deactivateBranch(id);
         return ResponseEntity.noContent().build();
     }
 
+    
     @PatchMapping("/{id}/activate")
     public ResponseEntity<Void> activateBranch(@PathVariable UUID id) {
         branchService.activateBranch(id);

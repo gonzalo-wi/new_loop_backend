@@ -50,10 +50,7 @@ public class OrderServiceImpl implements OrderService {
         var date  = request.getOrderDate() != null ? request.getOrderDate() : LocalDate.now();
         var order = orderMapper.toEntity(request, route, date);
         order.getItems().addAll(buildItems(request.getItems(), order));
-        var saved    = orderRepository.save(order);
-        var response = orderMapper.toResponse(saved);
-        auditService.register("CREATE_ORDER", "Order", saved.getId(), null, response);
-        return response;
+        return saveAndAudit(order, "CREATE_ORDER");
     }
 
     @Override
@@ -77,37 +74,43 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse startOrder(UUID id) {
         var order = findOrderById(id);
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new InvalidOrderStatusException(id, OrderStatus.PENDING, order.getStatus());
-        }
+        ensureStatus(order, OrderStatus.PENDING);
         order.setStatus(OrderStatus.IN_PROGRESS);
         currentUserProvider.current().ifPresent(user -> {
             order.setStartedBy(user.id());
             order.setStartedByName(user.name());
         });
         order.setStartedAt(LocalDateTime.now());
-        var saved    = orderRepository.save(order);
-        var response = orderMapper.toResponse(saved);
-        auditService.register("START_ORDER", "Order", saved.getId(), null, response);
-        return response;
+        return saveAndAudit(order, "START_ORDER");
     }
 
     @Override
     @Transactional
     public OrderResponse completeOrder(UUID id) {
         var order = findOrderById(id);
-        if (order.getStatus() != OrderStatus.IN_PROGRESS) {
-            throw new InvalidOrderStatusException(id, OrderStatus.IN_PROGRESS, order.getStatus());
-        }
+        ensureStatus(order, OrderStatus.IN_PROGRESS);
         order.setStatus(OrderStatus.COMPLETED);
         currentUserProvider.current().ifPresent(user -> {
             order.setCompletedBy(user.id());
             order.setCompletedByName(user.name());
         });
         order.setCompletedAt(LocalDateTime.now());
+        return saveAndAudit(order, "COMPLETE_ORDER");
+    }
+
+
+
+    
+    private void ensureStatus(Order order, OrderStatus expected) {
+        if (order.getStatus() != expected) {
+            throw new InvalidOrderStatusException(order.getId(), expected, order.getStatus());
+        }
+    }
+
+    private OrderResponse saveAndAudit(Order order, String action) {
         var saved    = orderRepository.save(order);
         var response = orderMapper.toResponse(saved);
-        auditService.register("COMPLETE_ORDER", "Order", saved.getId(), null, response);
+        auditService.register(action, "Order", saved.getId(), null, response);
         return response;
     }
 
@@ -124,7 +127,6 @@ public class OrderServiceImpl implements OrderService {
     private void validateQuantities(CreateOrderItemRequest req, OrderableProduct product) {
         boolean hasUnit = req.getUnitQuantity() != null && req.getUnitQuantity() > 0;
         boolean hasBulk = req.getBulkQuantity() != null && req.getBulkQuantity() > 0;
-
         if (!hasUnit && !hasBulk) {
             throw new OrderQuantityNotAllowedException(product.getCode(),
                     "at least one of unitQuantity or bulkQuantity must be greater than 0");

@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.routes.entity;
 
 import com.loop.new_loop_api.branches.entity.Branch;
+import com.loop.new_loop_api.common.entity.Activatable;
 import com.loop.new_loop_api.users.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -17,7 +18,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Route {
+public class Route implements Activatable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

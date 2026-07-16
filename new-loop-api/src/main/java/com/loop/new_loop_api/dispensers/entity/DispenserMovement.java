@@ -57,6 +57,16 @@ public class DispenserMovement {
     @Column(name = "aguas_movement_id", length = 50)
     private String aguasMovementId;
 
+    // Odoo repair intake (only for UNLOAD movements, sent after Aguas succeeds)
+    @Column(name = "odoo_status", length = 20)
+    private String odooStatus;
+
+    @Column(name = "odoo_picking_id")
+    private Integer odooPickingId;
+
+    @Column(name = "odoo_picking_name", length = 100)
+    private String odooPickingName;
+
     @Column(name = "registered_by")
     private UUID registeredBy;
 

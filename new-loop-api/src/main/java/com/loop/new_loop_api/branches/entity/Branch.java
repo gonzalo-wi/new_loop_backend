@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.branches.entity;
 
+import com.loop.new_loop_api.common.entity.Activatable;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Branch {
+public class Branch implements Activatable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

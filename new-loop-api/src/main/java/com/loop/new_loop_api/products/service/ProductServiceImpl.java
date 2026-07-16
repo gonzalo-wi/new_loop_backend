@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.products.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.common.service.ActivationService;
 import com.loop.new_loop_api.products.dto.CreateProductRequest;
 import com.loop.new_loop_api.products.dto.ProductResponse;
 import com.loop.new_loop_api.products.dto.UpdateProductRequest;
@@ -22,16 +23,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
-    private final ProductRepository productRepository;
-    private final ProductMapper     productMapper;
-    private final AuditService      auditService;
+    private final ProductRepository  productRepository;
+    private final ProductMapper      productMapper;
+    private final AuditService       auditService;
+    private final ActivationService  activationService;
 
     @Override
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request) {
-        if (productRepository.existsByCode(request.getCode())) {
-            throw new ProductCodeAlreadyExistsException(request.getCode());
-        }
+        validateCodeIsAvailable(request.getCode());
         var product  = productMapper.toEntity(request);
         var response = productMapper.toResponse(productRepository.save(product));
         auditService.register("CREATE_PRODUCT", "Product", response.getId(), null, response);
@@ -65,19 +65,19 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void deactivateProduct(UUID id) {
-        var product = findProductById(id);
-        product.setActive(false);
-        productRepository.save(product);
-        auditService.register("DEACTIVATE_PRODUCT", "Product", id, null, null);
+        activationService.setActive(productRepository, findProductById(id), id, false, "Product", "DEACTIVATE_PRODUCT");
     }
 
     @Override
     @Transactional
     public void activateProduct(UUID id) {
-        var product = findProductById(id);
-        product.setActive(true);
-        productRepository.save(product);
-        auditService.register("ACTIVATE_PRODUCT", "Product", id, null, null);
+        activationService.setActive(productRepository, findProductById(id), id, true, "Product", "ACTIVATE_PRODUCT");
+    }
+
+    private void validateCodeIsAvailable(String code) {
+        if (productRepository.existsByCode(code)) {
+            throw new ProductCodeAlreadyExistsException(code);
+        }
     }
 
     private Product findProductById(UUID id) {

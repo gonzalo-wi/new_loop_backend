@@ -11,14 +11,9 @@ import java.util.UUID;
 public interface BranchService {
 
     BranchResponse createBranch(CreateBranchRequest request);
-
     Page<BranchResponse> getAllBranches(Pageable pageable);
-
     BranchResponse getBranchById(UUID id);
-
     BranchResponse updateBranch(UUID id, UpdateBranchRequest request);
-
     void deactivateBranch(UUID id);
-
     void activateBranch(UUID id);
 }

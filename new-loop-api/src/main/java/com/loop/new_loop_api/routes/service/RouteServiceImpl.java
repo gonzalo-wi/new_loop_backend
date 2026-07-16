@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.routes.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.common.service.ActivationService;
 import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.branches.exception.BranchNotFoundException;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
@@ -30,18 +31,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class RouteServiceImpl implements RouteService {
 
-    private final RouteRepository  routeRepository;
-    private final RouteMapper      routeMapper;
-    private final BranchRepository branchRepository;
-    private final UserRepository   userRepository;
-    private final AuditService     auditService;
+    private final RouteRepository    routeRepository;
+    private final RouteMapper        routeMapper;
+    private final BranchRepository   branchRepository;
+    private final UserRepository     userRepository;
+    private final AuditService       auditService;
+    private final ActivationService  activationService;
 
     @Override
     @Transactional
     public RouteResponse createRoute(CreateRouteRequest request) {
-        if (routeRepository.existsByCode(request.getCode())) {
-            throw new RouteCodeAlreadyExistsException(request.getCode());
-        }
+        validateCodeIsAvailable(request.getCode());
         var branch   = findBranchById(request.getBranchId());
         var driver   = resolveDriver(request.getDriverId());
         var route    = routeMapper.toEntity(request, branch, driver);
@@ -78,22 +78,22 @@ public class RouteServiceImpl implements RouteService {
     @Override
     @Transactional
     public void deactivateRoute(UUID id) {
-        var route = findRouteById(id);
-        route.setActive(false);
-        routeRepository.save(route);
-        auditService.register("DEACTIVATE_ROUTE", "Route", id, null, null);
+        activationService.setActive(routeRepository, findRouteById(id), id, false, "Route", "DEACTIVATE_ROUTE");
     }
 
     @Override
     @Transactional
     public void activateRoute(UUID id) {
-        var route = findRouteById(id);
-        route.setActive(true);
-        routeRepository.save(route);
-        auditService.register("ACTIVATE_ROUTE", "Route", id, null, null);
+        activationService.setActive(routeRepository, findRouteById(id), id, true, "Route", "ACTIVATE_ROUTE");
     }
 
-    // Returns null if driverId is null (driver is optional on a route)
+    private void validateCodeIsAvailable(String code) {
+        if (routeRepository.existsByCode(code)) {
+            throw new RouteCodeAlreadyExistsException(code);
+        }
+    }
+
+
     private User resolveDriver(UUID driverId) {
         if (driverId == null) return null;
         var user = findUserById(driverId);

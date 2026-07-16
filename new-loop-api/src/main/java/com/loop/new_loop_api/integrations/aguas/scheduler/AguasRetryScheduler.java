@@ -1,9 +1,8 @@
 package com.loop.new_loop_api.integrations.aguas.scheduler;
 
-import com.loop.new_loop_api.integrations.aguas.service.AguasRetryDispatcher;
-import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
+import com.loop.new_loop_api.integrations.common.service.IntegrationRetryDispatcher;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,26 +16,26 @@ public class AguasRetryScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(AguasRetryScheduler.class);
 
-    private final IntegrationLogRepository integrationLogRepository;
-    private final AguasRetryDispatcher     aguasRetryDispatcher;
+    private final IntegrationLogRepository     integrationLogRepository;
+    private final IntegrationRetryDispatcher   integrationRetryDispatcher;
 
     @Value("${integrations.aguas.max-retries}")
     private int maxRetries;
 
-    /** Periodically re-sends failed Aguas attempts that have not exhausted their retries. */
+    /** Periodically re-sends failed integration attempts (Aguas + Odoo) that still have retries left. */
     @Scheduled(fixedDelayString = "${integrations.aguas.retry-interval-ms}")
     public void retryFailed() {
-        var failed = integrationLogRepository.findByIntegrationNameAndStatusAndRetryCountLessThan(
-                IntegrationName.AGUAS, IntegrationStatus.ERROR, maxRetries);
+        var failed = integrationLogRepository.findByStatusAndRetryCountLessThan(
+                IntegrationStatus.ERROR, maxRetries);
 
         if (failed.isEmpty()) return;
 
-        log.info("Retrying {} failed Aguas integration(s)", failed.size());
+        log.info("Retrying {} failed integration(s)", failed.size());
         failed.forEach(integrationLog -> {
             try {
-                aguasRetryDispatcher.retry(integrationLog.getId());
+                integrationRetryDispatcher.retry(integrationLog.getId());
             } catch (Exception e) {
-                log.error("Unexpected error retrying Aguas log {}: {}", integrationLog.getId(), e.getMessage());
+                log.error("Unexpected error retrying integration log {}: {}", integrationLog.getId(), e.getMessage());
             }
         });
     }

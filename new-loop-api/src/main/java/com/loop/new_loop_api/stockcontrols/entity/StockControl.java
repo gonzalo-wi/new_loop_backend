@@ -63,6 +63,13 @@ public class StockControl {
     private LocalDateTime confirmedAt;
     private LocalDateTime approvedAt;
 
+    // Returned by Aguas when the control is sent, needed to generate the digital remito later.
+    @Column(name = "aguas_formulario", length = 50)
+    private String aguasFormulario;
+
+    @Column(name = "aguas_nro_remito")
+    private Long aguasNroRemito;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

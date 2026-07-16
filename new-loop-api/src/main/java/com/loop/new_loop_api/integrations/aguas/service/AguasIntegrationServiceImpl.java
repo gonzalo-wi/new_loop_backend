@@ -138,6 +138,7 @@ public class AguasIntegrationServiceImpl implements AguasIntegrationService {
         integrationLog.setSentAt(LocalDateTime.now());
 
         control.setStatus(ControlStatus.SENT_TO_AGUAS);
+        applyRemitoData(control, responseBody);
         persist(integrationLog, control);
         auditService.register("SEND_TO_AGUAS", ENTITY_NAME, control.getId(), null,
                 Map.of("operation", integrationLog.getOperationType(), "status", IntegrationStatus.SENT));
@@ -155,6 +156,19 @@ public class AguasIntegrationServiceImpl implements AguasIntegrationService {
                 Map.of("operation", integrationLog.getOperationType(), "error", errorMessage));
         log.error("Aguas {} failed for control {}: {}",
                 integrationLog.getOperationType(), control.getId(), errorMessage);
+    }
+
+    /** Aguas returns { "data": { "formulario": "R202", "nroremito": 356104 } } on a successful send. */
+    private void applyRemitoData(StockControl control, String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) return;
+        try {
+            var data = objectMapper.readTree(responseBody).get("data");
+            if (data == null) return;
+            if (data.hasNonNull("formulario")) control.setAguasFormulario(data.get("formulario").asText());
+            if (data.hasNonNull("nroremito"))   control.setAguasNroRemito(data.get("nroremito").asLong());
+        } catch (Exception e) {
+            log.warn("Could not parse Aguas remito data for control {}: {}", control.getId(), e.getMessage());
+        }
     }
 
     private boolean isSuccessful(int status) {

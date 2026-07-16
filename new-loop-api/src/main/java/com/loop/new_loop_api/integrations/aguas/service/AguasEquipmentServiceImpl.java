@@ -5,6 +5,7 @@ import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovement;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
+import com.loop.new_loop_api.dispensers.event.DispenserMovementSentToAguasEvent;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.integrations.aguas.client.AguasEquipmentClient;
 import com.loop.new_loop_api.integrations.aguas.dto.AguasDeleteEquipmentRequest;
@@ -20,6 +21,7 @@ import feign.Util;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +48,7 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
     private final AguasEquipmentMapper        aguasEquipmentMapper;
     private final ObjectMapper                objectMapper;
     private final AuditService                auditService;
+    private final ApplicationEventPublisher   eventPublisher;
 
     @Override
     @Transactional
@@ -214,6 +217,11 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
                 Map.of("operation", integrationLog.getOperationType(), "status", IntegrationStatus.SENT));
         log.info("Aguas equipment {} sent successfully for movement {}. Response: {}",
                 integrationLog.getOperationType(), movement.getId(), responseBody);
+
+        // UNLOAD movements are forwarded to Odoo once Aguas confirms them.
+        if (movement.getType() == DispenserMovementType.UNLOAD) {
+            eventPublisher.publishEvent(new DispenserMovementSentToAguasEvent(movement.getId()));
+        }
     }
 
     private void markError(IntegrationLog integrationLog, DispenserMovement movement, String errorMessage) {

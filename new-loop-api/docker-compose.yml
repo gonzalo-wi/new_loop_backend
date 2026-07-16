@@ -7,7 +7,7 @@ services:
     network_mode: host
     environment:
       # Con network_mode host no hay mapeo de puertos: la app escucha directo en este puerto del server
-      SERVER_PORT: 8096
+      SERVER_PORT: ${PORT:-8096}
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}

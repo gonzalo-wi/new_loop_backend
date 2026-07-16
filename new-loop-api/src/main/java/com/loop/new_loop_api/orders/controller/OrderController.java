@@ -15,9 +15,9 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.time.LocalDate;
 import java.util.UUID;
+
 
 @RestController
 @RequestMapping("/orders")
@@ -33,6 +33,7 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(response, "Order created successfully"));
     }
 
+
     @GetMapping
     public ResponseEntity<ApiResponse<Page<OrderResponse>>> getAllOrders(
             @RequestParam(required = false) UUID routeId,
@@ -44,15 +45,18 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.ok(page));
     }
 
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(orderService.getOrderById(id)));
     }
 
+
     @PostMapping("/{id}/start")
     public ResponseEntity<ApiResponse<OrderResponse>> startOrder(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(orderService.startOrder(id), "Order started successfully"));
     }
+    
 
     @PostMapping("/{id}/complete")
     public ResponseEntity<ApiResponse<OrderResponse>> completeOrder(@PathVariable UUID id) {

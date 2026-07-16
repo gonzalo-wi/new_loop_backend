@@ -14,4 +14,6 @@ public interface IntegrationLogRepository
 
     List<IntegrationLog> findByIntegrationNameAndStatusAndRetryCountLessThan(
             IntegrationName integrationName, IntegrationStatus status, Integer maxRetries);
+
+    List<IntegrationLog> findByStatusAndRetryCountLessThan(IntegrationStatus status, Integer maxRetries);
 }

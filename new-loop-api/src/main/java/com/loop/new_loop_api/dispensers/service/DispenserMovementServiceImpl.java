@@ -31,11 +31,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DispenserMovementServiceImpl implements DispenserMovementService {
 
-    // Aguas default destinations per movement type
-    private static final int LOAD_LOCATION_EN_CAMIONETA   = 2;  // salida_camion -> EN CAMIONETA
-    private static final int LOAD_STATE_OPERATIVO          = 2;  // salida_camion -> OPERATIVO
-    private static final int UNLOAD_LOCATION_PLANTA_BAJA   = 49; // vuelta_camion -> PLANTA BAJA
-    private static final int UNLOAD_STATE_EN_REPARACION    = 4;  // vuelta_camion -> EN REPARACION
+    // Movimientos de aguas por deafault
+    private static final int LOAD_LOCATION_EN_CAMIONETA    = 2;  
+    private static final int LOAD_STATE_OPERATIVO          = 2;  
+    private static final int UNLOAD_LOCATION_PLANTA_BAJA   = 49; 
+    private static final int UNLOAD_STATE_EN_REPARACION    = 4;  
 
     private final DispenserMovementRepository dispenserMovementRepository;
     private final DispenserMovementMapper     dispenserMovementMapper;
@@ -48,30 +48,14 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     @Transactional
     public DispenserMovementResponse createMovement(CreateDispenserMovementRequest request) {
         var date = request.getMovementDate() != null ? request.getMovementDate() : LocalDate.now();
-
-        // Only one active movement of each type (LOAD / UNLOAD) per route and date.
-        if (dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
-                request.getType(), request.getRouteCode(), date, DispenserMovementStatus.CANCELLED)) {
-            throw new DuplicateDispenserMovementException(request.getType(), request.getRouteCode(), date);
-        }
-
-        var movement = dispenserMovementMapper.toEntity(request, date);
-
-        movement.setLocationId(resolveLocationId(request.getType(), request.getLocationId()));
-        movement.setStateId(resolveStateId(request.getType(), request.getStateId()));
-
-        currentUserProvider.current().ifPresent(user -> {
-            movement.setRegisteredBy(user.id());
-            movement.setRegisteredByUsername(user.username());
-        });
-
-        var saved    = dispenserMovementRepository.save(movement);
+        validateNoDuplicate(request, date);
+        var saved    = dispenserMovementRepository.save(buildMovement(request, date));
         var response = dispenserMovementMapper.toResponse(saved);
         auditService.register("CREATE_DISPENSER_MOVEMENT", "DispenserMovement", saved.getId(), null, response);
-
         eventPublisher.publishEvent(new DispenserMovementReadyForAguasEvent(saved.getId()));
         return response;
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -93,35 +77,56 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         return dispenserMovementMapper.toResponse(findMovementById(id));
     }
 
+
     @Override
     @Transactional
     public DispenserMovementResponse cancelMovement(UUID id) {
         var movement = findMovementById(id);
-        if (movement.getStatus() == DispenserMovementStatus.CANCELLED) {
-            throw new DispenserMovementAlreadyCancelledException(id);
-        }
-        // If it already reached Aguas, delete it there first (throws if Aguas fails, keeping data consistent).
-        if (movement.getAguasMovementId() != null && !aguasEquipmentService.deleteInAguas(id)) {
-            throw new AguasDeleteFailedException(id);
-        }
+        ensureNotCancelled(movement);
+        deleteInAguasIfSent(movement);
         movement.setStatus(DispenserMovementStatus.CANCELLED);
         var saved    = dispenserMovementRepository.save(movement);
         var response = dispenserMovementMapper.toResponse(saved);
-        auditService.register("CANCEL_DISPENSER_MOVEMENT", "DispenserMovement", saved.getId(), null, response);
+        auditService.register("CANCEL_DISPENSER_MOVEMENT", "DispenserMovement",
+        saved.getId(), null, response);
         return response;
     }
 
+   
     @Override
     @Transactional
     public DispenserMovementResponse updateMovement(UUID id, CreateDispenserMovementRequest request) {
-        // Aguas has no update endpoint: cancel the old movement (deleting it in Aguas) and create a new one.
         cancelMovement(id);
         return createMovement(request);
     }
+    
 
+    
+
+    //Validaciones
     private DispenserMovement findMovementById(UUID id) {
         return dispenserMovementRepository.findById(id)
                 .orElseThrow(() -> new DispenserMovementNotFoundException(id));
+    }
+
+    
+    private void validateNoDuplicate(CreateDispenserMovementRequest request, LocalDate date) {
+        if (dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                request.getType(), request.getRouteCode(), date, DispenserMovementStatus.CANCELLED)) {
+            throw new DuplicateDispenserMovementException(request.getType(), request.getRouteCode(), date);
+        }
+    }
+
+
+    private DispenserMovement buildMovement(CreateDispenserMovementRequest request, LocalDate date) {
+        var movement = dispenserMovementMapper.toEntity(request, date);
+        movement.setLocationId(resolveLocationId(request.getType(), request.getLocationId()));
+        movement.setStateId(resolveStateId(request.getType(), request.getStateId()));
+        currentUserProvider.current().ifPresent(user -> {
+            movement.setRegisteredBy(user.id());
+            movement.setRegisteredByUsername(user.username());
+        });
+        return movement;
     }
 
     private Integer resolveLocationId(DispenserMovementType type, Integer provided) {
@@ -133,4 +138,19 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         if (provided != null) return provided;
         return type == DispenserMovementType.LOAD ? LOAD_STATE_OPERATIVO : UNLOAD_STATE_EN_REPARACION;
     }
+
+     private void ensureNotCancelled(DispenserMovement movement) {
+        if (movement.getStatus() == DispenserMovementStatus.CANCELLED) {
+            throw new DispenserMovementAlreadyCancelledException(movement.getId());
+        }
+    }
+
+    private void deleteInAguasIfSent(DispenserMovement movement) {
+        if (movement.getAguasMovementId() != null && !aguasEquipmentService.deleteInAguas(movement.getId())) {
+            throw new AguasDeleteFailedException(movement.getId());
+        }
+    }
+
+
+    
 }

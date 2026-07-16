@@ -50,6 +50,8 @@ public class StockControlMapper {
                 .items(items)
                 .confirmedAt(control.getConfirmedAt())
                 .approvedAt(control.getApprovedAt())
+                .aguasFormulario(control.getAguasFormulario())
+                .aguasNroRemito(control.getAguasNroRemito())
                 .createdAt(control.getCreatedAt())
                 .updatedAt(control.getUpdatedAt())
                 .build();

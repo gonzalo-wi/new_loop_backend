@@ -10,15 +10,15 @@ import java.util.UUID;
 @Builder
 public class BranchResponse {
 
-    private UUID id;
-    private String name;
-    private String code;
-    private String address;
-    private String locality;
-    private String province;
-    private String cuit;
-    private String vatCondition;
-    private Boolean active;
+    private UUID          id;
+    private String        name;
+    private String        code;
+    private String        address;
+    private String        locality;
+    private String        province;
+    private String        cuit;
+    private String        vatCondition;
+    private Boolean       active;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
