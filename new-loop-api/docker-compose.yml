@@ -14,4 +14,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       AGUAS_BASE_URL: ${AGUAS_BASE_URL:-http://192.168.0.12}
       AGUAS_EQUIPMENT_BASE_URL: ${AGUAS_EQUIPMENT_BASE_URL:-http://192.168.0.58}
+      POWERFLEET_BASE_URL: ${POWERFLEET_BASE_URL:-https://www.monitoreodeflotas.com.ar/Fleetcore.Api}
+      POWERFLEET_USERNAME: ${POWERFLEET_USERNAME}
+      POWERFLEET_PASSWORD: ${POWERFLEET_PASSWORD}
     restart: unless-stopped

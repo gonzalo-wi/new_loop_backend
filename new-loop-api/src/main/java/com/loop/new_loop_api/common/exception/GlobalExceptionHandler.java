@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.common.exception;
 
 import com.loop.new_loop_api.common.response.ApiError;
+import com.loop.new_loop_api.fleet.exception.FleetProviderException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<ApiError> handleDisabledUser(DisabledException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.UNAUTHORIZED, "User account is inactive", request);
+    }
+
+    @ExceptionHandler(FleetProviderException.class)
+    public ResponseEntity<ApiError> handleFleetProvider(FleetProviderException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_GATEWAY, ex.getMessage(), request);
     }
 
     @ExceptionHandler(InvalidDataAccessApiUsageException.class)
