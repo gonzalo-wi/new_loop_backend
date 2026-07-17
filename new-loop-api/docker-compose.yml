@@ -5,6 +5,9 @@ services:
     # Comparte la red del servidor: así el contenedor alcanza la base y Aguas
     # igual que lo hace el host (evita el problema de ruteo del bridge de Docker).
     network_mode: host
+    # Persiste los APKs publicados aunque se reconstruya la imagen.
+    volumes:
+      - ./apk-storage:/app/apk-storage
     environment:
       # Con network_mode host no hay mapeo de puertos: la app escucha directo en este puerto del server
       SERVER_PORT: ${PORT:-8096}
@@ -17,4 +20,5 @@ services:
       POWERFLEET_BASE_URL: ${POWERFLEET_BASE_URL:-https://www.monitoreodeflotas.com.ar/Fleetcore.Api}
       POWERFLEET_USERNAME: ${POWERFLEET_USERNAME}
       POWERFLEET_PASSWORD: ${POWERFLEET_PASSWORD}
+      APK_STORAGE_PATH: /app/apk-storage
     restart: unless-stopped

@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.common.exception;
 
+import com.loop.new_loop_api.appupdate.exception.InvalidApkUploadException;
 import com.loop.new_loop_api.common.response.ApiError;
 import com.loop.new_loop_api.fleet.exception.FleetProviderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,6 +51,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FleetProviderException.class)
     public ResponseEntity<ApiError> handleFleetProvider(FleetProviderException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_GATEWAY, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidApkUploadException.class)
+    public ResponseEntity<ApiError> handleInvalidApkUpload(InvalidApkUploadException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
     @ExceptionHandler(InvalidDataAccessApiUsageException.class)
