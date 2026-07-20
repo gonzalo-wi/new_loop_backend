@@ -8,6 +8,9 @@ import java.util.UUID;
 @Getter
 public class UpdateRouteRequest {
 
+    @Size(max = 50, message = "Code must not exceed 50 characters")
+    private String code;
+
     private UUID branchId;
 
     private UUID driverId;

@@ -11,6 +11,7 @@ Módulo para registrar salidas y entradas de mercadería de los repartos.
 - [Obtener control por ID](#obtener-control-por-id)
 - [Actualizar control](#actualizar-control)
 - [Confirmar control](#confirmar-control)
+- [Ver remito en PDF](#ver-remito-en-pdf)
 - [Referencia de campos](#referencia-de-campos)
 
 ---
@@ -271,6 +272,57 @@ No requiere body.
   "message": "Stock control uuid debe estar en estado CONTROLLED pero está en: PENDING_DRIVER_APPROVAL"
 }
 ```
+
+---
+
+## Ver remito en PDF
+
+Solo disponible para controles de **salida (EXIT)** que ya fueron enviados a Aguas (necesitan tener `aguasFormulario` y `aguasNroRemito` cargados — ver [Referencia de campos](#referencia-de-campos)). Muestra el número de formulario, número de remito y el detalle de productos cargados.
+
+Dos formas de pedirlo:
+
+### Por ID del control
+
+```
+GET /stock-controls/{id}/remito
+Authorization: Bearer <token>
+```
+
+### Por reparto y fecha
+
+```
+GET /stock-controls/remito?routeId={routeId}&date=2026-06-25
+Authorization: Bearer <token>
+```
+
+Busca el control de salida (no cancelado) de ese reparto en esa fecha — como solo puede existir uno por reparto/fecha (regla de duplicados), la búsqueda es siempre unívoca.
+
+### Response `200 OK`
+
+Devuelve el archivo directo, no JSON:
+```
+Content-Type: application/pdf
+Content-Disposition: inline; filename="remito-<id>.pdf"
+```
+
+El navegador lo abre directo (se puede ver o guardar desde ahí). El PDF incluye: formulario, número de remito, reparto, sucursal, fecha, controlador, observaciones, y la tabla de productos (código, nombre, total, llenos, cambio).
+
+### Errores
+
+**`404 Not Found`** — no existe el control (por ID), o no hay control de salida para ese reparto/fecha
+```json
+{ "status": 404, "error": "Not Found", "message": "No EXIT control found for route <routeId> on 2026-06-25" }
+```
+
+**`409 Conflict`** — el control existe pero todavía no tiene remito
+```json
+{
+  "status": 409,
+  "error": "Conflict",
+  "message": "Remito not available for stock control <id>: the control has not been confirmed with Aguas yet"
+}
+```
+> Pasa si el control es de tipo `ENTRY` (los remitos son solo de salidas), o si la salida todavía no se envió/confirmó con Aguas.
 
 ---
 

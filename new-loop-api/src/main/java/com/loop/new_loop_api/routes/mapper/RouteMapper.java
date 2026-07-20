@@ -40,6 +40,7 @@ public class RouteMapper {
     }
 
     public void updateEntity(UpdateRouteRequest request, Route route, Branch branch, User driver) {
+        if (request.getCode() != null)         route.setCode(request.getCode());
         if (branch  != null)                   route.setBranch(branch);
         if (driver  != null)                   route.setDriver(driver);
         if (request.getTruckPlate()  != null)  route.setTruckPlate(request.getTruckPlate());

@@ -21,11 +21,14 @@ import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
 import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
 import com.loop.new_loop_api.stockcontrols.exception.DuplicateControlException;
+import com.loop.new_loop_api.stockcontrols.exception.ExitControlNotFoundException;
 import com.loop.new_loop_api.stockcontrols.exception.InactiveProductException;
 import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
+import com.loop.new_loop_api.stockcontrols.exception.RemitoNotAvailableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotFoundException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotModifiableException;
 import com.loop.new_loop_api.stockcontrols.mapper.StockControlMapper;
+import com.loop.new_loop_api.stockcontrols.pdf.RemitoPdfGenerator;
 import com.loop.new_loop_api.stockcontrols.repository.StockControlRepository;
 import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +57,7 @@ public class StockControlServiceImpl implements StockControlService {
     private final ProductRepository      productRepository;
     private final AuditService           auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final RemitoPdfGenerator     remitoPdfGenerator;
 
     @Override
     @Transactional
@@ -164,6 +168,31 @@ public class StockControlServiceImpl implements StockControlService {
                 .pending(pending.size())
                 .pendingRoutes(pending)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] generateRemitoPdf(UUID id) {
+        return buildRemito(findControlById(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] generateRemitoPdfByRouteAndDate(UUID routeId, LocalDate date) {
+        var control = stockControlRepository
+                .findByTypeAndRouteIdAndControlDateAndStatusNot(ControlType.EXIT, routeId, date, ControlStatus.CANCELLED)
+                .orElseThrow(() -> new ExitControlNotFoundException(routeId, date));
+        return buildRemito(control);
+    }
+
+    private byte[] buildRemito(StockControl control) {
+        if (control.getType() != ControlType.EXIT) {
+            throw new RemitoNotAvailableException(control.getId(), "remitos are only generated for EXIT controls");
+        }
+        if (control.getAguasFormulario() == null || control.getAguasNroRemito() == null) {
+            throw new RemitoNotAvailableException(control.getId(), "the control has not been confirmed with Aguas yet");
+        }
+        return remitoPdfGenerator.generate(control);
     }
 
     private List<StockControlItem> buildItems(List<CreateStockControlItemRequest> requests, StockControl control) {

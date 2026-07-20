@@ -67,6 +67,7 @@ public class RouteServiceImpl implements RouteService {
     public RouteResponse updateRoute(UUID id, UpdateRouteRequest request) {
         var route    = findRouteById(id);
         var oldValue = routeMapper.toResponse(route);
+        validateCodeIsAvailable(request.getCode(), route);
         var branch   = request.getBranchId() != null ? findBranchById(request.getBranchId()) : null;
         var driver   = request.getDriverId() != null ? resolveDriver(request.getDriverId()) : null;
         routeMapper.updateEntity(request, route, branch, driver);
@@ -90,6 +91,12 @@ public class RouteServiceImpl implements RouteService {
     private void validateCodeIsAvailable(String code) {
         if (routeRepository.existsByCode(code)) {
             throw new RouteCodeAlreadyExistsException(code);
+        }
+    }
+
+    private void validateCodeIsAvailable(String newCode, Route route) {
+        if (newCode != null && !newCode.equals(route.getCode()) && routeRepository.existsByCode(newCode)) {
+            throw new RouteCodeAlreadyExistsException(newCode);
         }
     }
 

@@ -15,7 +15,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -64,6 +66,27 @@ public class StockControlController {
     public ResponseEntity<ApiResponse<StockControlResponse>> getControlById(@PathVariable UUID id) {
         var response = stockControlService.getControlById(id);
         return ResponseEntity.ok(ApiResponse.ok(response, "Stock control retrieved successfully"));
+    }
+
+    @GetMapping("/remito")
+    public ResponseEntity<byte[]> getRemitoByRouteAndDate(
+            @RequestParam UUID routeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        var pdf = stockControlService.generateRemitoPdfByRouteAndDate(routeId, date);
+        return remitoResponse(pdf, "remito-" + routeId + "-" + date + ".pdf");
+    }
+
+    @GetMapping("/{id}/remito")
+    public ResponseEntity<byte[]> getRemitoById(@PathVariable UUID id) {
+        var pdf = stockControlService.generateRemitoPdf(id);
+        return remitoResponse(pdf, "remito-" + id + ".pdf");
+    }
+
+    private ResponseEntity<byte[]> remitoResponse(byte[] pdf, String filename) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 
     @PatchMapping("/{id}")

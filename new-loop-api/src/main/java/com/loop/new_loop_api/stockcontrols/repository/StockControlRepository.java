@@ -10,12 +10,16 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 public interface StockControlRepository extends JpaRepository<StockControl, UUID>, JpaSpecificationExecutor<StockControl> {
 
     boolean existsByTypeAndRouteIdAndControlDateAndStatusNot(
+            ControlType type, UUID routeId, LocalDate controlDate, ControlStatus status);
+
+    Optional<StockControl> findByTypeAndRouteIdAndControlDateAndStatusNot(
             ControlType type, UUID routeId, LocalDate controlDate, ControlStatus status);
 
     @Query("""

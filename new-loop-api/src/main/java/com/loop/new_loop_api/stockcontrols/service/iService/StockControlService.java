@@ -20,4 +20,6 @@ public interface StockControlService {
     StockControlResponse updateControl(UUID id, UpdateStockControlRequest request);
     StockControlResponse approveControl(UUID id);
     ArrivalsSummaryResponse getPendingArrivals(LocalDate date, UUID branchId);
+    byte[] generateRemitoPdf(UUID id);
+    byte[] generateRemitoPdfByRouteAndDate(UUID routeId, LocalDate date);
 }
