@@ -7,8 +7,10 @@ services:
     network_mode: host
     # Persiste los APKs publicados aunque se reconstruya la imagen.
     # Guardados en homologacion/app/apk-storage (sibling de backend/frontend/logs).
+    # docker-compose.yml vive en homologacion/backend/new_loop_backend/new-loop-api/,
+    # por eso hay que subir 3 niveles para llegar a homologacion/.
     volumes:
-      - ../app/apk-storage:/app/apk-storage
+      - ../../../app/apk-storage:/app/apk-storage
     environment:
       # Con network_mode host no hay mapeo de puertos: la app escucha directo en este puerto del server
       SERVER_PORT: ${PORT:-8096}
