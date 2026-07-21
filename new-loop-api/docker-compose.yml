@@ -6,8 +6,9 @@ services:
     # igual que lo hace el host (evita el problema de ruteo del bridge de Docker).
     network_mode: host
     # Persiste los APKs publicados aunque se reconstruya la imagen.
+    # Guardados en homologacion/app/apk-storage (sibling de backend/frontend/logs).
     volumes:
-      - ./apk-storage:/app/apk-storage
+      - ../app/apk-storage:/app/apk-storage
     environment:
       # Con network_mode host no hay mapeo de puertos: la app escucha directo en este puerto del server
       SERVER_PORT: ${PORT:-8096}
