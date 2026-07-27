@@ -8,7 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@FeignClient(name = "aguasClient", url = "${integrations.aguas.base-url}")
+@FeignClient(name = "aguasClient", url = "${integrations.aguas.base-url}", configuration = AguasFeignConfig.class)
 public interface AguasClient {
 
     @PostMapping(value = "/api/aguas/products/in", consumes = MediaType.APPLICATION_JSON_VALUE)
