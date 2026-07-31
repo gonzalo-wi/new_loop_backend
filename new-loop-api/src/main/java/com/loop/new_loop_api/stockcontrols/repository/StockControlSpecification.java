@@ -11,7 +11,8 @@ import java.util.UUID;
 public class StockControlSpecification {
 
     public static Specification<StockControl> withFilters(
-            ControlType type, ControlStatus status, UUID routeId, UUID controllerId, LocalDate from, LocalDate to) {
+            ControlType type, ControlStatus status, UUID routeId, UUID controllerId, UUID branchId,
+            LocalDate from, LocalDate to) {
 
         Specification<StockControl> spec = (r, q, cb) -> cb.conjunction();
 
@@ -19,6 +20,7 @@ public class StockControlSpecification {
         if (status       != null) spec = spec.and(hasStatus(status));
         if (routeId      != null) spec = spec.and(hasRoute(routeId));
         if (controllerId != null) spec = spec.and(hasController(controllerId));
+        if (branchId     != null) spec = spec.and(hasBranch(branchId));
         if (from         != null) spec = spec.and(dateFrom(from));
         if (to           != null) spec = spec.and(dateTo(to));
 
@@ -39,6 +41,10 @@ public class StockControlSpecification {
 
     private static Specification<StockControl> hasController(UUID controllerId) {
         return (r, q, cb) -> cb.equal(r.get("controllerId"), controllerId);
+    }
+
+    private static Specification<StockControl> hasBranch(UUID branchId) {
+        return (r, q, cb) -> cb.equal(r.get("branch").get("id"), branchId);
     }
 
     private static Specification<StockControl> dateFrom(LocalDate from) {

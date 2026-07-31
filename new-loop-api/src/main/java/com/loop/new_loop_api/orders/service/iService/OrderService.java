@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface OrderService {
 
     OrderResponse createOrder(CreateOrderRequest request);
-    Page<OrderResponse> getAllOrders(UUID routeId, OrderStatus status, LocalDate from, LocalDate to, Pageable pageable);
+    Page<OrderResponse> getAllOrders(UUID routeId, UUID branchId, OrderStatus status, LocalDate from, LocalDate to, Pageable pageable);
     OrderResponse getOrderById(UUID id);
     OrderResponse startOrder(UUID id);
     OrderResponse completeOrder(UUID id);

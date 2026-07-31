@@ -37,11 +37,12 @@ public class OrderController {
     @GetMapping
     public ResponseEntity<ApiResponse<Page<OrderResponse>>> getAllOrders(
             @RequestParam(required = false) UUID routeId,
+            @RequestParam(required = false) UUID branchId,
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        var page = orderService.getAllOrders(routeId, status, from, to, pageable);
+        var page = orderService.getAllOrders(routeId, branchId, status, from, to, pageable);
         return ResponseEntity.ok(ApiResponse.ok(page));
     }
 

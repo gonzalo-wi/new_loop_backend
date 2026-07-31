@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 
+import java.util.UUID;
+
 @Getter
 public class CreateUserRequest {
 
@@ -23,4 +25,6 @@ public class CreateUserRequest {
 
     @NotNull(message = "Role is required")
     private Role role;
+
+    private UUID branchId;
 }

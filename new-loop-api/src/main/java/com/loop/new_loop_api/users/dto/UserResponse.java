@@ -15,6 +15,8 @@ public class UserResponse {
     private String        name;
     private String        username;
     private Role          role;
+    private UUID          branchId;
+    private String        branchName;
     private Boolean       active;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

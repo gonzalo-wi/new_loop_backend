@@ -29,6 +29,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class StockControlController {
 
+    private static final String CREATED_MESSAGE           = "Stock control created successfully";
+    private static final String LIST_RETRIEVED_MESSAGE    = "Stock controls retrieved successfully";
+    private static final String PENDING_ARRIVALS_MESSAGE  = "Pending arrivals retrieved successfully";
+    private static final String RETRIEVED_MESSAGE         = "Stock control retrieved successfully";
+    private static final String UPDATED_MESSAGE           = "Stock control updated successfully";
+    private static final String APPROVED_MESSAGE          = "Stock control approved successfully";
+
     private final StockControlService stockControlService;
 
     @PostMapping
@@ -36,36 +43,35 @@ public class StockControlController {
             @Valid @RequestBody CreateStockControlRequest request) {
         var response = stockControlService.createControl(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(response, "Stock control created successfully"));
+                .body(ApiResponse.ok(response, CREATED_MESSAGE));
     }
 
-    
     @GetMapping
     public ResponseEntity<ApiResponse<Page<StockControlResponse>>> getAllControls(
             @RequestParam(required = false) ControlType type,
             @RequestParam(required = false) ControlStatus status,
             @RequestParam(required = false) UUID routeId,
             @RequestParam(required = false) UUID controllerId,
+            @RequestParam(required = false) UUID branchId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        var page = stockControlService.getAllControls(type, status, routeId, controllerId, from, to, pageable);
-        return ResponseEntity.ok(ApiResponse.ok(page, "Stock controls retrieved successfully"));
+        var page = stockControlService.getAllControls(type, status, routeId, controllerId, branchId, from, to, pageable);
+        return ResponseEntity.ok(ApiResponse.ok(page, LIST_RETRIEVED_MESSAGE));
     }
-
 
     @GetMapping("/pending-arrivals")
     public ResponseEntity<ApiResponse<ArrivalsSummaryResponse>> getPendingArrivals(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) UUID branchId) {
         var summary = stockControlService.getPendingArrivals(date, branchId);
-        return ResponseEntity.ok(ApiResponse.ok(summary, "Pending arrivals retrieved successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(summary, PENDING_ARRIVALS_MESSAGE));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<StockControlResponse>> getControlById(@PathVariable UUID id) {
         var response = stockControlService.getControlById(id);
-        return ResponseEntity.ok(ApiResponse.ok(response, "Stock control retrieved successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(response, RETRIEVED_MESSAGE));
     }
 
     @GetMapping("/remito")
@@ -94,12 +100,12 @@ public class StockControlController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStockControlRequest request) {
         var response = stockControlService.updateControl(id, request);
-        return ResponseEntity.ok(ApiResponse.ok(response, "Stock control updated successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(response, UPDATED_MESSAGE));
     }
 
     @PostMapping("/{id}/approve")
     public ResponseEntity<ApiResponse<StockControlResponse>> approveControl(@PathVariable UUID id) {
         var response = stockControlService.approveControl(id);
-        return ResponseEntity.ok(ApiResponse.ok(response, "Stock control approved successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(response, APPROVED_MESSAGE));
     }
 }

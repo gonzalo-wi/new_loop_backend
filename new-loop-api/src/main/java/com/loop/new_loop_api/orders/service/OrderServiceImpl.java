@@ -2,6 +2,7 @@ package com.loop.new_loop_api.orders.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
+import com.loop.new_loop_api.users.entity.Role;
 import com.loop.new_loop_api.orders.dto.CreateOrderItemRequest;
 import com.loop.new_loop_api.orders.dto.CreateOrderRequest;
 import com.loop.new_loop_api.orders.dto.OrderResponse;
@@ -55,13 +56,23 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<OrderResponse> getAllOrders(UUID routeId, OrderStatus status, LocalDate from, LocalDate to, Pageable pageable) {
+    public Page<OrderResponse> getAllOrders(UUID routeId, UUID branchId, OrderStatus status, LocalDate from, LocalDate to, Pageable pageable) {
+        var scopedBranchId = scopeBranchId(branchId);
         Specification<Order> spec = (r, q, cb) -> cb.conjunction();
-        if (routeId != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("route").get("id"), routeId));
-        if (status  != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("status"), status));
-        if (from    != null) spec = spec.and((r, q, cb) -> cb.greaterThanOrEqualTo(r.<LocalDate>get("orderDate"), from));
-        if (to      != null) spec = spec.and((r, q, cb) -> cb.lessThanOrEqualTo(r.<LocalDate>get("orderDate"), to));
+        if (routeId        != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("route").get("id"), routeId));
+        if (scopedBranchId != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("route").get("branch").get("id"), scopedBranchId));
+        if (status         != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("status"), status));
+        if (from           != null) spec = spec.and((r, q, cb) -> cb.greaterThanOrEqualTo(r.<LocalDate>get("orderDate"), from));
+        if (to             != null) spec = spec.and((r, q, cb) -> cb.lessThanOrEqualTo(r.<LocalDate>get("orderDate"), to));
         return orderRepository.findAll(spec, pageable).map(orderMapper::toResponse);
+    }
+
+    /** CONTROLADOR/PICKER only see their own branch: their branch always wins over any requested filter. */
+    private UUID scopeBranchId(UUID requestedBranchId) {
+        return currentUserProvider.current()
+                .filter(user -> user.role() == Role.CONTROLADOR || user.role() == Role.PICKER)
+                .map(user -> user.branchId())
+                .orElse(requestedBranchId);
     }
 
     @Override

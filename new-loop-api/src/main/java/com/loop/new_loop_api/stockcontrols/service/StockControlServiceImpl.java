@@ -1,6 +1,8 @@
 package com.loop.new_loop_api.stockcontrols.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.common.security.CurrentUserProvider;
+import com.loop.new_loop_api.users.entity.Role;
 import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.branches.exception.BranchNotFoundException;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
@@ -50,58 +52,54 @@ import static com.loop.new_loop_api.stockcontrols.repository.StockControlSpecifi
 @RequiredArgsConstructor
 public class StockControlServiceImpl implements StockControlService {
 
-    private final StockControlRepository stockControlRepository;
-    private final StockControlMapper     stockControlMapper;
-    private final BranchRepository       branchRepository;
-    private final RouteRepository        routeRepository;
-    private final ProductRepository      productRepository;
-    private final AuditService           auditService;
+    private final StockControlRepository    stockControlRepository;
+    private final StockControlMapper        stockControlMapper;
+    private final BranchRepository          branchRepository;
+    private final RouteRepository           routeRepository;
+    private final ProductRepository         productRepository;
+    private final AuditService              auditService;
     private final ApplicationEventPublisher eventPublisher;
-    private final RemitoPdfGenerator     remitoPdfGenerator;
+    private final RemitoPdfGenerator        remitoPdfGenerator;
+    private final CurrentUserProvider       currentUserProvider;
 
+    
     @Override
     @Transactional
     public StockControlResponse createControl(CreateStockControlRequest request) {
         var branch   = findBranchById(request.getBranchId());
         var route    = findRouteById(request.getRouteId());
         var date     = resolveControlDate(request.getType(), request.getControlDate());
-
-        // A route can only have one active control of each type (ENTRY / EXIT) per day.
         if (stockControlRepository.existsByTypeAndRouteIdAndControlDateAndStatusNot(
                 request.getType(), route.getId(), date, ControlStatus.CANCELLED)) {
             throw new DuplicateControlException(request.getType(), route.getId(), date);
         }
-
         var control  = stockControlMapper.toEntity(request, branch, route, date);
         control.getItems().addAll(buildItems(request.getItems(), control));
-
-        // ENTRY controls are sent to the driver for approval as soon as they are created;
-        // EXIT controls stay as CONTROLLED and are not shown to the driver.
         if (request.getType() == ControlType.ENTRY) {
             control.setStatus(ControlStatus.PENDING_DRIVER_APPROVAL);
             control.setConfirmedAt(LocalDateTime.now());
         }
-
         var saved    = stockControlRepository.save(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register("CREATE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
-
-        // EXIT controls are sent to Aguas as soon as they are created (no driver approval needed).
         if (saved.getType() == ControlType.EXIT) {
             eventPublisher.publishEvent(new StockControlReadyForAguasEvent(saved.getId()));
         }
         return response;
     }
 
+
     @Override
     @Transactional(readOnly = true)
     public Page<StockControlResponse> getAllControls(
-            ControlType type, ControlStatus status, UUID routeId, UUID controllerId,
+            ControlType type, ControlStatus status, UUID routeId, UUID controllerId, UUID branchId,
             LocalDate from, LocalDate to, Pageable pageable) {
+        var scopedBranchId = scopeBranchId(branchId);
         return stockControlRepository
-                .findAll(withFilters(type, status, routeId, controllerId, from, to), pageable)
+                .findAll(withFilters(type, status, routeId, controllerId, scopedBranchId, from, to), pageable)
                 .map(stockControlMapper::toResponse);
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -142,8 +140,6 @@ public class StockControlServiceImpl implements StockControlService {
         var saved    = stockControlRepository.save(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register("APPROVE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
-
-        // Once the driver approves an ENTRY control it is sent to Aguas.
         eventPublisher.publishEvent(new StockControlReadyForAguasEvent(saved.getId()));
         return response;
     }
@@ -151,16 +147,14 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional(readOnly = true)
     public ArrivalsSummaryResponse getPendingArrivals(LocalDate date, UUID branchId) {
-        var targetDate = date != null ? date : LocalDate.now();
-
-        var exits           = stockControlRepository.findControlsForDate(ControlType.EXIT, targetDate, ControlStatus.CANCELLED, branchId);
+        var targetDate      = date != null ? date : LocalDate.now();
+        var scopedBranchId  = scopeBranchId(branchId);
+        var exits           = stockControlRepository.findControlsForDate(ControlType.EXIT, targetDate, ControlStatus.CANCELLED, scopedBranchId);
         var arrivedRouteIds = stockControlRepository.findRouteIdsForDate(ControlType.ENTRY, targetDate, ControlStatus.CANCELLED);
-
-        var pending = exits.stream()
+        var pending         = exits.stream()
                 .filter(exit -> !arrivedRouteIds.contains(exit.getRoute().getId()))
                 .map(stockControlMapper::toPendingArrival)
                 .toList();
-
         return ArrivalsSummaryResponse.builder()
                 .date(targetDate)
                 .totalExpected(exits.size())
@@ -169,6 +163,7 @@ public class StockControlServiceImpl implements StockControlService {
                 .pendingRoutes(pending)
                 .build();
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -185,6 +180,7 @@ public class StockControlServiceImpl implements StockControlService {
         return buildRemito(control);
     }
 
+
     private byte[] buildRemito(StockControl control) {
         if (control.getType() != ControlType.EXIT) {
             throw new RemitoNotAvailableException(control.getId(), "remitos are only generated for EXIT controls");
@@ -193,6 +189,14 @@ public class StockControlServiceImpl implements StockControlService {
             throw new RemitoNotAvailableException(control.getId(), "the control has not been confirmed with Aguas yet");
         }
         return remitoPdfGenerator.generate(control);
+    }
+
+    /** CONTROLADOR/PICKER only see their own branch: their branch always wins over any requested filter. */
+    private UUID scopeBranchId(UUID requestedBranchId) {
+        return currentUserProvider.current()
+                .filter(user -> user.role() == Role.CONTROLADOR || user.role() == Role.PICKER)
+                .map(user -> user.branchId())
+                .orElse(requestedBranchId);
     }
 
     private List<StockControlItem> buildItems(List<CreateStockControlItemRequest> requests, StockControl control) {

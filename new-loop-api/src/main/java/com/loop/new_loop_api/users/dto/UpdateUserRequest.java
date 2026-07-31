@@ -4,6 +4,8 @@ import com.loop.new_loop_api.users.entity.Role;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 
+import java.util.UUID;
+
 @Getter
 public class UpdateUserRequest {
 
@@ -14,4 +16,6 @@ public class UpdateUserRequest {
     private String password;
 
     private Role role;
+
+    private UUID branchId;
 }

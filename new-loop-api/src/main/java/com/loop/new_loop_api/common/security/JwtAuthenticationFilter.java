@@ -37,7 +37,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 var username = jwtService.extractUsername(token);
 
                 userRepository.findByUsername(username).ifPresent(user -> {
-                    var principal   = new AuthenticatedUser(user.getId(), user.getUsername(), user.getName(), user.getRole());
+                    var branchId    = user.getBranch() != null ? user.getBranch().getId() : null;
+                    var principal   = new AuthenticatedUser(user.getId(), user.getUsername(), user.getName(), user.getRole(), branchId);
                     var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
                     var authentication = new UsernamePasswordAuthenticationToken(principal, null, authorities);
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

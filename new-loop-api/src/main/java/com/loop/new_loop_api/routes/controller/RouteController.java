@@ -26,13 +26,20 @@ import java.util.UUID;
 @Tag(name = "Routes")
 public class RouteController {
 
+    private static final String CREATED_MESSAGE        = "Route created successfully";
+    private static final String LIST_RETRIEVED_MESSAGE = "Routes retrieved successfully";
+    private static final String RETRIEVED_MESSAGE      = "Route retrieved successfully";
+    private static final String UPDATED_MESSAGE        = "Route updated successfully";
+    private static final String DEACTIVATED_MESSAGE    = "Route deactivated successfully";
+    private static final String ACTIVATED_MESSAGE      = "Route activated successfully";
+
     private final RouteService routeService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<RouteResponse>> createRoute(@Valid @RequestBody CreateRouteRequest request) {
         var response = routeService.createRoute(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(response, "Route created successfully"));
+                .body(ApiResponse.ok(response, CREATED_MESSAGE));
     }
 
     @Parameters({
@@ -43,30 +50,30 @@ public class RouteController {
     @GetMapping
     public ResponseEntity<ApiResponse<Page<RouteResponse>>> getAllRoutes(
             @PageableDefault(size = 20, sort = "code", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(routeService.getAllRoutes(pageable), "Routes retrieved successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(routeService.getAllRoutes(pageable), LIST_RETRIEVED_MESSAGE));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<RouteResponse>> getRouteById(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.ok(routeService.getRouteById(id), "Route retrieved successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(routeService.getRouteById(id), RETRIEVED_MESSAGE));
     }
 
     @PatchMapping("/{id}")
     public ResponseEntity<ApiResponse<RouteResponse>> updateRoute(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRouteRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(routeService.updateRoute(id, request), "Route updated successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(routeService.updateRoute(id, request), UPDATED_MESSAGE));
     }
 
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<ApiResponse<Void>> deactivateRoute(@PathVariable UUID id) {
         routeService.deactivateRoute(id);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Route deactivated successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(null, DEACTIVATED_MESSAGE));
     }
 
     @PatchMapping("/{id}/activate")
     public ResponseEntity<ApiResponse<Void>> activateRoute(@PathVariable UUID id) {
         routeService.activateRoute(id);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Route activated successfully"));
+        return ResponseEntity.ok(ApiResponse.ok(null, ACTIVATED_MESSAGE));
     }
 }

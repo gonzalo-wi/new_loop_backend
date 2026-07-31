@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.users.entity;
 
+import com.loop.new_loop_api.branches.entity.Branch;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -34,6 +35,11 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
     private Role role;
+
+    /** Scopes what this user sees for CONTROLADOR/PICKER; not required for ADMIN/SUPERVISOR. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
 
     @Column(name = "fcm_token")
     private String fcmToken;

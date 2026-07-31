@@ -15,7 +15,7 @@ import java.util.UUID;
 public interface StockControlService {
 
     StockControlResponse createControl(CreateStockControlRequest request);
-    Page<StockControlResponse> getAllControls(ControlType type, ControlStatus status, UUID routeId, UUID controllerId, LocalDate from, LocalDate to, Pageable pageable);
+    Page<StockControlResponse> getAllControls(ControlType type, ControlStatus status, UUID routeId, UUID controllerId, UUID branchId, LocalDate from, LocalDate to, Pageable pageable);
     StockControlResponse getControlById(UUID id);
     StockControlResponse updateControl(UUID id, UpdateStockControlRequest request);
     StockControlResponse approveControl(UUID id);
