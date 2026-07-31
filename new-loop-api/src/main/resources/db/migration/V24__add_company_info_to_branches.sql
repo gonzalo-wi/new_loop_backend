@@ -1,0 +1,2 @@
+ALTER TABLE branches ADD COLUMN company_name VARCHAR(150);
+ALTER TABLE branches ADD COLUMN phone VARCHAR(50);

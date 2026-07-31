@@ -13,6 +13,8 @@ public class BranchMapper {
         return Branch.builder()
                 .name(request.getName())
                 .code(request.getCode())
+                .companyName(request.getCompanyName())
+                .phone(request.getPhone())
                 .address(request.getAddress())
                 .locality(request.getLocality())
                 .province(request.getProvince())
@@ -27,6 +29,8 @@ public class BranchMapper {
                 .id(branch.getId())
                 .name(branch.getName())
                 .code(branch.getCode())
+                .companyName(branch.getCompanyName())
+                .phone(branch.getPhone())
                 .address(branch.getAddress())
                 .locality(branch.getLocality())
                 .province(branch.getProvince())
@@ -41,6 +45,8 @@ public class BranchMapper {
     public void updateEntity(UpdateBranchRequest request, Branch branch) {
         if (request.getCode() != null)         branch.setCode(request.getCode());
         if (request.getName() != null)         branch.setName(request.getName());
+        if (request.getCompanyName() != null)  branch.setCompanyName(request.getCompanyName());
+        if (request.getPhone() != null)        branch.setPhone(request.getPhone());
         if (request.getAddress() != null)      branch.setAddress(request.getAddress());
         if (request.getLocality() != null)     branch.setLocality(request.getLocality());
         if (request.getProvince() != null)     branch.setProvince(request.getProvince());

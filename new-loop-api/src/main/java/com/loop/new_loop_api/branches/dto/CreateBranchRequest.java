@@ -15,6 +15,12 @@ public class CreateBranchRequest {
     @Size(max = 50, message = "Code must not exceed 50 characters")
     private String code;
 
+    @Size(max = 150, message = "Company name must not exceed 150 characters")
+    private String companyName;
+
+    @Size(max = 50, message = "Phone must not exceed 50 characters")
+    private String phone;
+
     @Size(max = 255, message = "Address must not exceed 255 characters")
     private String address;
 

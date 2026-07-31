@@ -13,6 +13,8 @@ public class BranchResponse {
     private UUID          id;
     private String        name;
     private String        code;
+    private String        companyName;
+    private String        phone;
     private String        address;
     private String        locality;
     private String        province;

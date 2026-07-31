@@ -29,6 +29,13 @@ public class Branch implements Activatable {
     @Column(name = "code", nullable = false, unique = true)
     private String code;
 
+    /** Legal entity that owns this plant (e.g. "El Jumillano S.A.", "Lufran S.A.") — printed on the remito. */
+    @Column(name = "company_name")
+    private String companyName;
+
+    @Column(name = "phone")
+    private String phone;
+
     @Column(name = "address")
     private String address;
 

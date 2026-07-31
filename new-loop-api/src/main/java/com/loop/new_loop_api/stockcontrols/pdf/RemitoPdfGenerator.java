@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.stockcontrols.pdf;
 
+import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
 import org.openpdf.text.*;
@@ -26,8 +27,13 @@ public class RemitoPdfGenerator {
     private static final Color BORDER_COLOR = new Color(210, 214, 220);
     private static final Color STRIPE_COLOR = new Color(248, 249, 250);
 
-    private static final Font TITLE_FONT        = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 19, BRAND_COLOR);
-    private static final Font SUBTITLE_FONT     = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.GRAY);
+    private static final Font COMPANY_NAME_FONT = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14, Color.BLACK);
+    private static final Font COMPANY_INFO_FONT = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.DARK_GRAY);
+    private static final Font TITLE_FONT         = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, BRAND_COLOR);
+    private static final Font COMPROBANTE_FONT   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.DARK_GRAY);
+    private static final Font DISCLAIMER_FONT    = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 7, Color.GRAY);
+    private static final Font LEGAL_LABEL_FONT   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.DARK_GRAY);
+    private static final Font LEGAL_VALUE_FONT   = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.BLACK);
     private static final Font BADGE_LABEL_FONT  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.WHITE);
     private static final Font BADGE_VALUE_FONT  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 17, Color.WHITE);
     private static final Font LABEL_FONT        = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Color.DARK_GRAY);
@@ -36,6 +42,7 @@ public class RemitoPdfGenerator {
     private static final Font TABLE_HEADER_FONT = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Color.WHITE);
     private static final Font TABLE_CELL_FONT   = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.BLACK);
     private static final Font EMPTY_FONT        = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 9, Color.GRAY);
+    private static final Font SIGNATURE_FONT    = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.DARK_GRAY);
     private static final Font FOOTER_FONT       = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 7, Color.GRAY);
 
     public byte[] generate(StockControl control) {
@@ -45,8 +52,10 @@ public class RemitoPdfGenerator {
             PdfWriter.getInstance(document, output);
             document.open();
 
-            document.add(title());
-            document.add(subtitle());
+            var branch = control.getBranch();
+            document.add(companyHeader(branch));
+            document.add(spacer(8));
+            document.add(legalInfoTable(branch));
             document.add(spacer(16));
             document.add(remitoBadge(control));
             document.add(spacer(18));
@@ -57,7 +66,9 @@ public class RemitoPdfGenerator {
             document.add(sectionTitle("Productos cargados"));
             document.add(spacer(6));
             document.add(itemsTable(control));
-            document.add(spacer(24));
+            document.add(spacer(30));
+            document.add(signatureSection());
+            document.add(spacer(16));
             document.add(footer());
 
             document.close();
@@ -67,17 +78,79 @@ public class RemitoPdfGenerator {
         return output.toByteArray();
     }
 
-    private Paragraph title() {
-        var paragraph = new Paragraph("REMITO DE SALIDA", TITLE_FONT);
-        paragraph.setAlignment(Element.ALIGN_CENTER);
-        return paragraph;
+    /** Left: legal entity that owns the plant (varies per branch). Right: document title and fiscal disclaimer. */
+    private PdfPTable companyHeader(Branch branch) {
+        var table = new PdfPTable(2);
+        table.setWidthPercentage(100);
+        setWidths(table, 1.6f, 1f);
+
+        table.addCell(companyInfoCell(branch));
+        table.addCell(remitoTitleCell());
+        return table;
     }
 
-    private Paragraph subtitle() {
-        var paragraph = new Paragraph("LOOP · Control de reparto", SUBTITLE_FONT);
-        paragraph.setAlignment(Element.ALIGN_CENTER);
-        paragraph.setSpacingBefore(2);
-        return paragraph;
+    private PdfPCell companyInfoCell(Branch branch) {
+        var cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+
+        cell.addElement(new Paragraph(hasText(branch.getCompanyName()) ? branch.getCompanyName() : "-", COMPANY_NAME_FONT));
+        if (hasText(branch.getAddress())) {
+            cell.addElement(new Paragraph(branch.getAddress(), COMPANY_INFO_FONT));
+        }
+        var localityLine = joinNonBlank(branch.getLocality(), branch.getProvince());
+        if (!localityLine.isBlank()) {
+            cell.addElement(new Paragraph(localityLine, COMPANY_INFO_FONT));
+        }
+        if (hasText(branch.getPhone())) {
+            cell.addElement(new Paragraph("Tel: " + branch.getPhone(), COMPANY_INFO_FONT));
+        }
+        return cell;
+    }
+
+    private PdfPCell remitoTitleCell() {
+        var cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+
+        var title = new Paragraph("REMITO DE SALIDA", TITLE_FONT);
+        title.setAlignment(Element.ALIGN_RIGHT);
+        cell.addElement(title);
+
+        var comprobante = new Paragraph("Cód. 91 · Comprobante R", COMPROBANTE_FONT);
+        comprobante.setAlignment(Element.ALIGN_RIGHT);
+        comprobante.setSpacingBefore(2);
+        cell.addElement(comprobante);
+
+        var disclaimer = new Paragraph("Documento no válido como factura", DISCLAIMER_FONT);
+        disclaimer.setAlignment(Element.ALIGN_RIGHT);
+        disclaimer.setSpacingBefore(2);
+        cell.addElement(disclaimer);
+
+        return cell;
+    }
+
+    /** CUIT / IIBB (Convenio Multilateral, mismo número que el CUIT) / condición frente al IVA. */
+    private PdfPTable legalInfoTable(Branch branch) {
+        var table = new PdfPTable(3);
+        table.setWidthPercentage(100);
+        setWidths(table, 1f, 1f, 1f);
+
+        addLegalCell(table, "CUIT", branch.getCuit());
+        addLegalCell(table, "IIBB Conv. Mult.", branch.getCuit());
+        addLegalCell(table, "Condición IVA", branch.getVatCondition());
+        return table;
+    }
+
+    private void addLegalCell(PdfPTable table, String label, String value) {
+        var cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setPadding(3);
+
+        var paragraph = new Paragraph();
+        paragraph.add(new Chunk(label + ": ", LEGAL_LABEL_FONT));
+        paragraph.add(new Chunk(value != null ? value : "-", LEGAL_VALUE_FONT));
+        cell.addElement(paragraph);
+        table.addCell(cell);
     }
 
     /** Highlighted banner with the two numbers that matter most for the physical remito. */
@@ -190,6 +263,35 @@ public class RemitoPdfGenerator {
         table.addCell(cell);
     }
 
+    /** Two blank signature lines, as printed on the physical remito ("Controló" / "Repartidor"). */
+    private PdfPTable signatureSection() {
+        var table = new PdfPTable(2);
+        table.setWidthPercentage(100);
+        setWidths(table, 1f, 1f);
+
+        table.addCell(signatureLineCell());
+        table.addCell(signatureLineCell());
+        table.addCell(signatureLabelCell("Controló"));
+        table.addCell(signatureLabelCell("Repartidor"));
+        return table;
+    }
+
+    private PdfPCell signatureLineCell() {
+        var cell = new PdfPCell(new Phrase(" "));
+        cell.setBorder(Rectangle.BOTTOM);
+        cell.setBorderColor(Color.BLACK);
+        cell.setFixedHeight(30);
+        return cell;
+    }
+
+    private PdfPCell signatureLabelCell(String label) {
+        var cell = new PdfPCell(new Phrase(label, SIGNATURE_FONT));
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        cell.setPaddingTop(4);
+        return cell;
+    }
+
     private Paragraph footer() {
         var text = "Documento generado automáticamente por LOOP el "
                 + LocalDateTime.now().format(DATETIME_FORMAT);
@@ -211,5 +313,16 @@ public class RemitoPdfGenerator {
         } catch (DocumentException e) {
             throw new IllegalStateException("Invalid PDF table layout", e);
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String joinNonBlank(String a, String b) {
+        if (hasText(a) && hasText(b)) return a + ", " + b;
+        if (hasText(a)) return a;
+        if (hasText(b)) return b;
+        return "";
     }
 }
