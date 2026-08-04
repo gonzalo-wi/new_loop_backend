@@ -89,10 +89,17 @@ No hay usuarios seed. El primer usuario admin se crea a mano contra el endpoint 
 - Dos operaciones, **mismo host**, dos paths distintos:
   - `POST {base}/api/aguas/products/out` — control de salida (EXIT)
   - `POST {base}/api/aguas/products/in` — control de entrada (ENTRY)
-- Host actual: `http://192.168.0.251:8083` (property `integrations.aguas.base-url`, env var `AGUAS_BASE_URL`).
-- **Historial de cambios de host**: este sistema cambió de IP más de una vez
-  (`192.168.0.12` → `192.168.0.251:8083`). Si vuelve a fallar con 404 genérico, lo primero a revisar
-  es si Aguas cambió de host/puerto de nuevo — no asumir que es un bug nuestro.
+- Host actual: `http://192.168.0.58` (property `integrations.aguas.base-url`, env var `AGUAS_BASE_URL`).
+  Es el mismo host que usa la integración de equipment/dispensers (sección 4.2) — hasta ahora eran
+  hosts distintos, pero Aguas los unificó.
+- **Historial de cambios de host**: este sistema cambió de IP varias veces
+  (`192.168.0.12` → `192.168.0.251:8083` → `192.168.0.58`). Si vuelve a fallar con 404 genérico o con
+  error de conexión (`HTTP -1`, sin body — ver más abajo), lo primero a revisar es si Aguas cambió de
+  host/puerto de nuevo — no asumir que es un bug nuestro.
+- **`HTTP -1` en el log no es un error de Aguas**: significa que Feign nunca recibió respuesta HTTP
+  (timeout, conexión rechazada, host inalcanzable) — es un problema de red/conectividad en ese momento
+  puntual, no un 404/422 de negocio. El `AguasRetryScheduler` reintenta solo; si después de 5 intentos
+  sigue en `AGUAS_ERROR`, ahí sí investigar si Aguas estuvo caído por más tiempo.
 - **Trampa ya pisada una vez**: `docker-compose.yml` tiene su propio default para `AGUAS_BASE_URL`
   (`${AGUAS_BASE_URL:-http://...}`) separado del default de `application.properties`. Si el `.env` del
   servidor no define la variable, gana el default de `docker-compose.yml` — y si ese quedó desactualizado,
