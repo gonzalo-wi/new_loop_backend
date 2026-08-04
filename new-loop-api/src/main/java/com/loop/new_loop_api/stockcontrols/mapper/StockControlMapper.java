@@ -75,6 +75,17 @@ public class StockControlMapper {
                 .build();
     }
 
+    /** Fills in products not present in the request, so Aguas and local records always cover the full catalog. */
+    public StockControlItem toZeroItem(Product product, StockControl control) {
+        return StockControlItem.builder()
+                .stockControl(control)
+                .product(product)
+                .totalQuantity(0)
+                .fullQuantity(0)
+                .exchangeQuantity(0)
+                .build();
+    }
+
     public PendingArrivalResponse toPendingArrival(StockControl control) {
         return PendingArrivalResponse.builder()
                 .routeId(control.getRoute().getId())

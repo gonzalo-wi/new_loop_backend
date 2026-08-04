@@ -43,6 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -199,16 +201,26 @@ public class StockControlServiceImpl implements StockControlService {
                 .orElse(requestedBranchId);
     }
 
+    /** Products not covered by the request are added with quantity 0, so the control (and Aguas) always sees the full catalog. */
     private List<StockControlItem> buildItems(List<CreateStockControlItemRequest> requests, StockControl control) {
-        return requests.stream()
-                .map(req -> {
-                    var product = findProductById(req.getProductId());
-                    if (!product.getActive()) {
-                        throw new InactiveProductException(product.getCode());
-                    }
-                    return stockControlMapper.toItem(req, product, control);
-                })
-                .toList();
+        var items = new ArrayList<StockControlItem>();
+        var coveredProductIds = new HashSet<UUID>();
+
+        for (var req : requests) {
+            var product = findProductById(req.getProductId());
+            if (!product.getActive()) {
+                throw new InactiveProductException(product.getCode());
+            }
+            items.add(stockControlMapper.toItem(req, product, control));
+            coveredProductIds.add(product.getId());
+        }
+
+        productRepository.findByActiveTrue().stream()
+                .filter(product -> !coveredProductIds.contains(product.getId()))
+                .map(product -> stockControlMapper.toZeroItem(product, control))
+                .forEach(items::add);
+
+        return items;
     }
 
     private LocalDate resolveControlDate(ControlType type, LocalDate requested) {
