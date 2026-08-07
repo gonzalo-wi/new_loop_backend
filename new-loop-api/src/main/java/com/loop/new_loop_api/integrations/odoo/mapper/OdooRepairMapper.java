@@ -16,7 +16,7 @@ public class OdooRepairMapper {
                 .idreparto(movement.getRouteCode())
                 .tecnico(movement.getTechnician())
                 .usuario(movement.getRegisteredByUsername())
-                .equipos(new ArrayList<>(movement.getSerials()))
+                .equipos(new ArrayList<>(movement.serialsToSend()))
                 .build();
 
         return OdooRepairRequest.builder()

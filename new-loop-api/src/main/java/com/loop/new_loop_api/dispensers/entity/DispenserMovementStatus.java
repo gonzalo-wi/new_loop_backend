@@ -4,5 +4,6 @@ public enum DispenserMovementStatus {
     REGISTERED,
     SENT_TO_AGUAS,
     AGUAS_ERROR,
+    SKIPPED_UNREGISTERED,
     CANCELLED
 }

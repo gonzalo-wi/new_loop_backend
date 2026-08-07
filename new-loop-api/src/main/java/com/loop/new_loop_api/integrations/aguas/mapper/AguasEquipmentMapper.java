@@ -15,7 +15,7 @@ public class AguasEquipmentMapper {
                 .idReparto(parseInteger(movement.getRouteCode()))
                 .tecnico(movement.getTechnician())
                 .usuario(movement.getRegisteredByUsername())
-                .equipos(new ArrayList<>(movement.getSerials()))
+                .equipos(new ArrayList<>(movement.serialsToSend()))
                 .idUbicacionDestino(movement.getLocationId())
                 .idEstadoDestino(movement.getStateId())
                 .build();

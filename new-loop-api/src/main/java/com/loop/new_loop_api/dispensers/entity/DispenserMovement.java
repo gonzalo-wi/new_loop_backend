@@ -44,7 +44,7 @@ public class DispenserMovement {
     private LocalDate movementDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 30)
     @Builder.Default
     private DispenserMovementStatus status = DispenserMovementStatus.REGISTERED;
 
@@ -53,6 +53,13 @@ public class DispenserMovement {
     @Column(name = "serial", length = 100)
     @Builder.Default
     private List<String> serials = new ArrayList<>();
+
+    // Scanned serials flagged as "dispenser no registrado" in jMobile: kept for traceability but not sent out.
+    @ElementCollection
+    @CollectionTable(name = "dispenser_movement_excluded_serials", joinColumns = @JoinColumn(name = "movement_id"))
+    @Column(name = "serial", length = 100)
+    @Builder.Default
+    private List<String> excludedSerials = new ArrayList<>();
 
     @Column(name = "aguas_movement_id", length = 50)
     private String aguasMovementId;
@@ -80,4 +87,11 @@ public class DispenserMovement {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /** Serials actually forwarded to Aguas/Odoo: everything scanned minus the excluded ones. */
+    public List<String> serialsToSend() {
+        if (serials == null) return List.of();
+        if (excludedSerials == null || excludedSerials.isEmpty()) return List.copyOf(serials);
+        return serials.stream().filter(serial -> !excludedSerials.contains(serial)).toList();
+    }
 }

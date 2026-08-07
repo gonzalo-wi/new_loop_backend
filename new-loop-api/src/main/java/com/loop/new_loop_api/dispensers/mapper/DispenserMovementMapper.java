@@ -34,6 +34,7 @@ public class DispenserMovementMapper {
                 .movementDate(movement.getMovementDate())
                 .status(movement.getStatus())
                 .serials(new ArrayList<>(movement.getSerials()))
+                .excludedSerials(new ArrayList<>(movement.getExcludedSerials()))
                 .aguasMovementId(movement.getAguasMovementId())
                 .odooStatus(movement.getOdooStatus())
                 .odooPickingId(movement.getOdooPickingId())

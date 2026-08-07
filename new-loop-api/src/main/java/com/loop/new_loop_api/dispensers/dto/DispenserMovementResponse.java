@@ -23,6 +23,7 @@ public class DispenserMovementResponse {
     private LocalDate               movementDate;
     private DispenserMovementStatus status;
     private List<String>            serials;
+    private List<String>            excludedSerials;
     private String                  aguasMovementId;
     private String                  odooStatus;
     private Integer                 odooPickingId;
