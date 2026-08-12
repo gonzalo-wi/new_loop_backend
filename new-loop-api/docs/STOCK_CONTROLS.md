@@ -11,6 +11,7 @@ Módulo para registrar salidas y entradas de mercadería de los repartos.
 - [Obtener control por ID](#obtener-control-por-id)
 - [Actualizar control](#actualizar-control)
 - [Confirmar control](#confirmar-control)
+- [Corregir control (SUPERVISOR)](#corregir-control-supervisor)
 - [Ver remito en PDF](#ver-remito-en-pdf)
 - [Referencia de campos](#referencia-de-campos)
 
@@ -275,6 +276,109 @@ No requiere body.
 
 ---
 
+## Corregir control (SUPERVISOR)
+
+```
+POST /stock-controls/{id}/correct
+Authorization: Bearer <token>
+```
+
+Permite corregir un control de **entrada (ENTRY)** que ya fue enviado a Aguas, pisando el envío anterior. Pensado para cuando se detecta un error después de que el control ya impactó en Aguas (ej: el chofer cargó mal una cantidad).
+
+**Requiere rol `SUPERVISOR`.** Cualquier otro rol recibe `403 Forbidden`.
+
+Solo aplica a controles `ENTRY` en estado `SENT_TO_AGUAS` o `AGUAS_ERROR`. No está disponible para controles `EXIT` ni para otros estados (por ejemplo, no se puede "corregir" algo que todavía no se envió — para eso está [Actualizar control](#actualizar-control)).
+
+Al confirmarse, la app debe considerar que el reenvío a Aguas es **asíncrono**: el control puede quedar un instante en `SENT_TO_AGUAS` con el `aguasFormulario`/`aguasNroRemito` todavía viejos hasta que el reenvío termine. Si el reenvío falla, el control pasa a `AGUAS_ERROR` (el backend reintenta solo) y puede volver a corregirse.
+
+### Request body
+
+```json
+{
+  "reason": "El chofer cargó mal la cantidad de cambio del producto PRD001",
+  "observations": "Corregido tras reclamo del chofer",
+  "truckOrdered": true,
+  "items": [
+    {
+      "productId": "uuid-del-producto",
+      "totalQuantity": 12,
+      "fullQuantity": 10,
+      "exchangeQuantity": 2,
+      "observations": "Observación opcional del ítem"
+    }
+  ]
+}
+```
+
+| Campo          | Tipo    | Requerido | Descripción                                                        |
+|----------------|---------|-----------|---------------------------------------------------------------------|
+| `reason`       | string  | **Sí**    | Motivo de la corrección (máx. 500 caracteres). Queda en la auditoría |
+| `items`        | array   | **Sí**    | Lista de ítems corregidos, no puede venir vacía. **Reemplaza todos los ítems existentes** (mismo formato que en [Crear control](#crear-control)) |
+| `observations` | string  | No        | Observaciones generales del control (máx. 500 caracteres)          |
+| `truckOrdered` | boolean | No        | Si el camión está ordenado                                         |
+
+> A diferencia de [Actualizar control](#actualizar-control), no se puede cambiar `controllerId` ni `controlDate` en una corrección.
+
+### Response `200 OK`
+
+Devuelve el control corregido con el mismo formato que la creación (`aguasFormulario`/`aguasNroRemito` se actualizan una vez que el reenvío a Aguas termina).
+
+```json
+{
+  "data": {
+    "id": "uuid-del-control",
+    "type": "ENTRY",
+    "status": "SENT_TO_AGUAS",
+    "observations": "Corregido tras reclamo del chofer",
+    "items": [ /* ítems corregidos */ ],
+    "aguasFormulario": "R202",
+    "aguasNroRemito": 356104,
+    "...": "..."
+  },
+  "message": "Stock control corrected successfully"
+}
+```
+
+### Errores
+
+**`403 Forbidden`** — el usuario autenticado no tiene rol `SUPERVISOR`
+```json
+{
+  "status": 403,
+  "error": "Forbidden",
+  "message": "Only users with role SUPERVISOR can correct a stock control"
+}
+```
+
+**`404 Not Found`** — control no encontrado (se verifica solo si el usuario es SUPERVISOR)
+```json
+{ "status": 404, "error": "Not Found", "message": "Stock control not found: uuid-del-control" }
+```
+
+**`409 Conflict`** — el control no es corregible: es `EXIT`, o su estado no es `SENT_TO_AGUAS`/`AGUAS_ERROR`
+```json
+{
+  "status": 409,
+  "error": "Conflict",
+  "message": "Stock control uuid cannot be corrected in status: PENDING_DRIVER_APPROVAL"
+}
+```
+
+**`400 Bad Request`** — falta `reason`, o `items` viene vacío/ausente
+```json
+{ "status": 400, "error": "Bad Request", "message": "Reason is required" }
+```
+
+### Auditoría
+
+Cada corrección queda registrada en `GET /audit` (ver [AUTH.md](./AUTH.md) o el módulo de auditoría) con:
+- `action`: `CORRECT_STOCK_CONTROL`
+- `username` y `userRole` del supervisor que corrigió
+- `reason`: el motivo enviado en el request
+- `oldValue`/`newValue`: snapshot completo del control antes y después de la corrección, para poder comparar qué cambió
+
+---
+
 ## Ver remito en PDF
 
 Solo disponible para controles de **salida (EXIT)** que ya fueron enviados a Aguas (necesitan tener `aguasFormulario` y `aguasNroRemito` cargados — ver [Referencia de campos](#referencia-de-campos)). Muestra el número de formulario, número de remito y el detalle de productos cargados.
@@ -349,6 +453,8 @@ CONTROLLED
             ├─► ACCEPTED_BY_DRIVER
             └─► REJECTED_BY_DRIVER
 ```
+
+> Para controles `ENTRY`, una vez en `SENT_TO_AGUAS` o `AGUAS_ERROR`, un `SUPERVISOR` puede volver a corregirlos con `POST /{id}/correct` (ver [Corregir control](#corregir-control-supervisor)). El control permanece en `SENT_TO_AGUAS` (o pasa a `AGUAS_ERROR` si el reenvío falla), no hay un estado nuevo — solo se actualizan sus datos y se reenvía a Aguas.
 
 ### Campos de la respuesta del control
 
