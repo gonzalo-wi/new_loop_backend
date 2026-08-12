@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.stockcontrols.service.iService;
 
 import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
+import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
@@ -19,6 +20,7 @@ public interface StockControlService {
     StockControlResponse getControlById(UUID id);
     StockControlResponse updateControl(UUID id, UpdateStockControlRequest request);
     StockControlResponse approveControl(UUID id);
+    StockControlResponse correctControl(UUID id, CorrectStockControlRequest request);
     ArrivalsSummaryResponse getPendingArrivals(LocalDate date, UUID branchId);
     byte[] generateRemitoPdf(UUID id);
     byte[] generateRemitoPdfByRouteAndDate(UUID routeId, LocalDate date);

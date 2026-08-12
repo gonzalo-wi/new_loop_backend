@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.integrations.aguas.listener;
 
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasIntegrationService;
+import com.loop.new_loop_api.stockcontrols.event.StockControlCorrectedEvent;
 import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
@@ -22,5 +23,15 @@ public class AguasControlListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onControlReady(StockControlReadyForAguasEvent event) {
         aguasIntegrationService.send(event.controlId());
+    }
+
+    /**
+     * Runs after a SUPERVISOR correction commits: re-sends the control to Aguas so the
+     * corrected data overwrites the previous remito.
+     */
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onControlCorrected(StockControlCorrectedEvent event) {
+        aguasIntegrationService.resend(event.controlId());
     }
 }

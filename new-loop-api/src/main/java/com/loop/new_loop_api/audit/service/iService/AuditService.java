@@ -11,6 +11,8 @@ public interface AuditService {
 
     void register(String action, String entityName, UUID entityId, Object oldValue, Object newValue);
 
+    void register(String action, String entityName, UUID entityId, Object oldValue, Object newValue, String reason);
+
     Page<AuditLogResponse> getAll(String entityName, String action, UUID entityId,
                                   LocalDateTime from, LocalDateTime to, Pageable pageable);
 }

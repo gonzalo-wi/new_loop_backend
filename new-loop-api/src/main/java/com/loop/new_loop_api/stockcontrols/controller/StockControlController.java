@@ -2,6 +2,7 @@ package com.loop.new_loop_api.stockcontrols.controller;
 
 import com.loop.new_loop_api.common.response.ApiResponse;
 import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
+import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
@@ -35,6 +36,7 @@ public class StockControlController {
     private static final String RETRIEVED_MESSAGE         = "Stock control retrieved successfully";
     private static final String UPDATED_MESSAGE           = "Stock control updated successfully";
     private static final String APPROVED_MESSAGE          = "Stock control approved successfully";
+    private static final String CORRECTED_MESSAGE         = "Stock control corrected successfully";
 
     private final StockControlService stockControlService;
 
@@ -107,5 +109,13 @@ public class StockControlController {
     public ResponseEntity<ApiResponse<StockControlResponse>> approveControl(@PathVariable UUID id) {
         var response = stockControlService.approveControl(id);
         return ResponseEntity.ok(ApiResponse.ok(response, APPROVED_MESSAGE));
+    }
+
+    @PostMapping("/{id}/correct")
+    public ResponseEntity<ApiResponse<StockControlResponse>> correctControl(
+            @PathVariable UUID id,
+            @Valid @RequestBody CorrectStockControlRequest request) {
+        var response = stockControlService.correctControl(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(response, CORRECTED_MESSAGE));
     }
 }

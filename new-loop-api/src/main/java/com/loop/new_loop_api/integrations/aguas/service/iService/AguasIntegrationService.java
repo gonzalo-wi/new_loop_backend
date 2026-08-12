@@ -9,4 +9,7 @@ public interface AguasIntegrationService {
 
     /** Re-sends a previously failed attempt identified by its integration log id. */
     void retry(UUID logId);
+
+    /** Re-sends a stock control to Aguas even if it was already sent, overwriting its remito. */
+    void resend(UUID controlId);
 }

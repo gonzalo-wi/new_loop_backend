@@ -13,6 +13,7 @@ import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.routes.exception.RouteNotFoundException;
 import com.loop.new_loop_api.routes.repository.RouteRepository;
 import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
+import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlItemRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
@@ -21,12 +22,15 @@ import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
 import com.loop.new_loop_api.stockcontrols.entity.ControlType;
 import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
+import com.loop.new_loop_api.stockcontrols.event.StockControlCorrectedEvent;
 import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
+import com.loop.new_loop_api.stockcontrols.exception.CorrectionNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.DuplicateControlException;
 import com.loop.new_loop_api.stockcontrols.exception.ExitControlNotFoundException;
 import com.loop.new_loop_api.stockcontrols.exception.InactiveProductException;
 import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
 import com.loop.new_loop_api.stockcontrols.exception.RemitoNotAvailableException;
+import com.loop.new_loop_api.stockcontrols.exception.StockControlNotCorrectableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotFoundException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotModifiableException;
 import com.loop.new_loop_api.stockcontrols.mapper.StockControlMapper;
@@ -46,6 +50,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.loop.new_loop_api.stockcontrols.repository.StockControlSpecification.withFilters;
@@ -53,6 +58,11 @@ import static com.loop.new_loop_api.stockcontrols.repository.StockControlSpecifi
 @Service
 @RequiredArgsConstructor
 public class StockControlServiceImpl implements StockControlService {
+
+    private static final Set<ControlStatus> CORRECTABLE_STATUSES =
+            Set.of(ControlStatus.SENT_TO_AGUAS, ControlStatus.AGUAS_ERROR);
+
+    private static final String CORRECT_STOCK_CONTROL_ACTION = "CORRECT_STOCK_CONTROL";
 
     private final StockControlRepository    stockControlRepository;
     private final StockControlMapper        stockControlMapper;
@@ -120,9 +130,7 @@ public class StockControlServiceImpl implements StockControlService {
         var oldValue = stockControlMapper.toResponse(control);
         stockControlMapper.updateEntity(request, control);
         if (request.getItems() != null) {
-            control.getItems().clear();
-            stockControlRepository.saveAndFlush(control);
-            control.getItems().addAll(buildItems(request.getItems(), control));
+            replaceItems(control, request.getItems());
         }
         var saved    = stockControlRepository.save(control);
         var response = stockControlMapper.toResponse(saved);
@@ -143,6 +151,23 @@ public class StockControlServiceImpl implements StockControlService {
         var response = stockControlMapper.toResponse(saved);
         auditService.register("APPROVE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
         eventPublisher.publishEvent(new StockControlReadyForAguasEvent(saved.getId()));
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public StockControlResponse correctControl(UUID id, CorrectStockControlRequest request) {
+        assertCurrentUserIsSupervisor();
+        var control = findControlById(id);
+        assertControlIsCorrectable(control);
+
+        var oldValue = stockControlMapper.toResponse(control);
+        applyCorrection(control, request);
+        var saved    = stockControlRepository.save(control);
+        var response = stockControlMapper.toResponse(saved);
+
+        auditService.register(CORRECT_STOCK_CONTROL_ACTION, "StockControl", saved.getId(), oldValue, response, request.getReason());
+        eventPublisher.publishEvent(new StockControlCorrectedEvent(saved.getId()));
         return response;
     }
 
@@ -191,6 +216,39 @@ public class StockControlServiceImpl implements StockControlService {
             throw new RemitoNotAvailableException(control.getId(), "the control has not been confirmed with Aguas yet");
         }
         return remitoPdfGenerator.generate(control);
+    }
+
+    private void assertCurrentUserIsSupervisor() {
+        var isSupervisor = currentUserProvider.current()
+                .map(user -> user.role() == Role.SUPERVISOR)
+                .orElse(false);
+        if (!isSupervisor) {
+            throw new CorrectionNotAllowedException();
+        }
+    }
+
+    private void assertControlIsCorrectable(StockControl control) {
+        if (control.getType() != ControlType.ENTRY) {
+            throw new StockControlNotCorrectableException(control.getId(), control.getType());
+        }
+        if (!CORRECTABLE_STATUSES.contains(control.getStatus())) {
+            throw new StockControlNotCorrectableException(control.getId(), control.getStatus());
+        }
+    }
+
+    private void applyCorrection(StockControl control, CorrectStockControlRequest request) {
+        if (request.getObservations() != null) control.setObservations(request.getObservations());
+        if (request.getTruckOrdered() != null) control.setTruckOrdered(request.getTruckOrdered());
+        if (request.getItems() != null) {
+            replaceItems(control, request.getItems());
+        }
+    }
+
+    /** Rebuilds the control's items from scratch: clears and flushes before re-adding to avoid stale rows. */
+    private void replaceItems(StockControl control, List<CreateStockControlItemRequest> items) {
+        control.getItems().clear();
+        stockControlRepository.saveAndFlush(control);
+        control.getItems().addAll(buildItems(items, control));
     }
 
     /** CONTROLADOR/PICKER only see their own branch: their branch always wins over any requested filter. */

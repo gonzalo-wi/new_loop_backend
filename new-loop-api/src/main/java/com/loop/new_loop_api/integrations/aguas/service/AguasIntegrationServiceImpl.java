@@ -67,6 +67,18 @@ public class AguasIntegrationServiceImpl implements AguasIntegrationService {
 
     @Override
     @Transactional
+    public void resend(UUID controlId) {
+        var control = stockControlRepository.findById(controlId).orElse(null);
+        if (control == null) {
+            log.warn("Aguas resend skipped: stock control {} no longer exists", controlId);
+            return;
+        }
+        var integrationLog = newLog(control);
+        attempt(control, integrationLog);
+    }
+
+    @Override
+    @Transactional
     public void retry(UUID logId) {
         var integrationLog = integrationLogRepository.findById(logId)
                 .orElseThrow(() -> new IntegrationLogNotFoundException(logId));

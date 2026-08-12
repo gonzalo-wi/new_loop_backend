@@ -30,6 +30,11 @@ public class AuditServiceImpl implements AuditService {
 
     @Override
     public void register(String action, String entityName, UUID entityId, Object oldValue, Object newValue) {
+        register(action, entityName, entityId, oldValue, newValue, null);
+    }
+
+    @Override
+    public void register(String action, String entityName, UUID entityId, Object oldValue, Object newValue, String reason) {
         var log = AuditLog.builder()
                 .userId(getCurrentUserId())
                 .username(getCurrentUsername())
@@ -39,6 +44,7 @@ public class AuditServiceImpl implements AuditService {
                 .entityId(entityId)
                 .oldValue(serialize(oldValue))
                 .newValue(serialize(newValue))
+                .reason(reason)
                 .build();
         auditLogRepository.save(log);
     }
