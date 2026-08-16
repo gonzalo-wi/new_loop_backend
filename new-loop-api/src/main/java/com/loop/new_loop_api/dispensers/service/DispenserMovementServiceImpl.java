@@ -16,7 +16,10 @@ import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementService;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
+import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +34,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DispenserMovementServiceImpl implements DispenserMovementService {
 
+    private static final Logger log = LoggerFactory.getLogger(DispenserMovementServiceImpl.class);
+
     // Movimientos de aguas por deafault
     private static final int LOAD_LOCATION_EN_CAMIONETA    = 2;  
     private static final int LOAD_STATE_OPERATIVO          = 2;  
@@ -43,16 +48,21 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     private final AuditService                auditService;
     private final ApplicationEventPublisher   eventPublisher;
     private final AguasEquipmentService       aguasEquipmentService;
+    private final UnregisteredDispenserService unregisteredDispenserService;
 
     @Override
     @Transactional
     public DispenserMovementResponse createMovement(CreateDispenserMovementRequest request) {
         var date = request.getMovementDate() != null ? request.getMovementDate() : LocalDate.now();
         validateNoDuplicate(request, date);
-        var saved    = dispenserMovementRepository.save(buildMovement(request, date));
+        var movement = buildMovement(request, date);
+        excludeUnregisteredSerials(movement);
+        var saved    = dispenserMovementRepository.save(movement);
         var response = dispenserMovementMapper.toResponse(saved);
         auditService.register("CREATE_DISPENSER_MOVEMENT", "DispenserMovement", saved.getId(), null, response);
-        eventPublisher.publishEvent(new DispenserMovementReadyForAguasEvent(saved.getId()));
+        if (saved.getStatus() != DispenserMovementStatus.SKIPPED_UNREGISTERED) {
+            eventPublisher.publishEvent(new DispenserMovementReadyForAguasEvent(saved.getId()));
+        }
         return response;
     }
 
@@ -127,6 +137,33 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
             movement.setRegisteredByUsername(user.username());
         });
         return movement;
+    }
+
+    /**
+     * On UNLOAD, serials that jMobile reports as "dispenser no registrado" for the movement date are
+     * kept on the movement but never forwarded to Aguas/Odoo. If none is left the movement is closed
+     * as SKIPPED_UNREGISTERED, so the caller already gets the final outcome in the create response.
+     */
+    private void excludeUnregisteredSerials(DispenserMovement movement) {
+        if (movement.getType() != DispenserMovementType.UNLOAD) return;
+
+        var unregistered = unregisteredDispenserService.findUnregisteredSerials(movement.getMovementDate());
+        if (unregistered.isEmpty()) return;
+
+        var excluded = movement.getSerials().stream()
+                .filter(serial -> unregistered.contains(unregisteredDispenserService.normalize(serial)))
+                .toList();
+        if (excluded.isEmpty()) return;
+
+        movement.getExcludedSerials().addAll(excluded);
+        log.warn("Movement on route {}: {} of {} serial(s) excluded as unregistered in jMobile: {}",
+                movement.getRouteCode(), excluded.size(), movement.getSerials().size(), excluded);
+
+        if (movement.serialsToSend().isEmpty()) {
+            movement.setStatus(DispenserMovementStatus.SKIPPED_UNREGISTERED);
+            log.warn("Movement on route {} not sent to Aguas: every scanned serial is unregistered in jMobile",
+                    movement.getRouteCode());
+        }
     }
 
     private Integer resolveLocationId(DispenserMovementType type, Integer provided) {

@@ -149,6 +149,7 @@ Authorization: Bearer <token>
     "movementDate": "2026-06-18",
     "status": "REGISTERED",
     "serials": ["11177762", "LM29P05300840"],
+    "excludedSerials": [],
     "registeredBy": "uuid-usuario",
     "registeredByUsername": "SORTIZ",
     "createdAt": "2026-06-18T09:12:00",
@@ -159,6 +160,8 @@ Authorization: Bearer <token>
 ```
 
 > El movimiento se crea con `status: REGISTERED` y se manda a Aguas **en segundo plano**. El estado cambia a `SENT_TO_AGUAS` o `AGUAS_ERROR` unos instantes después — consultar el detalle o el listado para ver el estado final.
+
+> **Descargas (`UNLOAD`):** antes de responder, el backend descarta los seriales que figuran como "no registrados" en jMobile para esa fecha. Los descartados vienen en `excludedSerials` y no se envían a Aguas ni a Odoo. Si no queda ninguno para enviar, el movimiento se crea con `status: SKIPPED_UNREGISTERED` y no se llama a Aguas. Detalle completo en [DISPENSERS_NO_REGISTRADOS.md](./DISPENSERS_NO_REGISTRADOS.md).
 
 ### Errores
 
@@ -186,7 +189,7 @@ Authorization: Bearer <token>
 |-------------|---------|----------------------------------------------------------|
 | `type`      | string  | Filtrar por `LOAD` o `UNLOAD`                           |
 | `routeCode` | string  | Filtrar por número de reparto                           |
-| `status`    | string  | `REGISTERED`, `SENT_TO_AGUAS`, `AGUAS_ERROR`            |
+| `status`    | string  | `REGISTERED`, `SENT_TO_AGUAS`, `AGUAS_ERROR`, `SKIPPED_UNREGISTERED`, `CANCELLED` |
 | `from`      | date    | Fecha desde (`YYYY-MM-DD`)                              |
 | `to`        | date    | Fecha hasta (`YYYY-MM-DD`)                              |
 | `page`      | integer | Página (default `0`)                                    |
@@ -331,6 +334,7 @@ Authorization: Bearer <token>
 | `movementDate`         | date     | Fecha del movimiento                               |
 | `status`               | string   | Estado del envío (ver tabla)                       |
 | `serials`              | array    | Números de serie escaneados                        |
+| `excludedSerials`      | array    | Seriales escaneados que **no** se enviaron por figurar como no registrados (solo `UNLOAD`) |
 | `aguasMovementId`      | string   | ID del movimiento en Aguas (`null` hasta enviarse) |
 | `registeredBy`         | UUID     | ID del usuario que registró                        |
 | `registeredByUsername` | string   | Usuario que registró (se envía a Aguas)            |
@@ -346,6 +350,7 @@ Authorization: Bearer <token>
 | `REGISTERED`    | Guardado local, enviando a Aguas                       | "Registrado / Enviando…"     |
 | `SENT_TO_AGUAS` | Aceptado por Aguas correctamente                       | "Enviado ✓"                  |
 | `AGUAS_ERROR`   | Falló el envío a Aguas (se reintenta automáticamente)  | "Error — reintentando"       |
+| `SKIPPED_UNREGISTERED` | Todos los seriales figuraban como no registrados: no se envió nada (estado final, no se reintenta) | "No enviado — dispenser no registrado" |
 | `CANCELLED`     | Cancelado (eliminado en Aguas)                         | "Cancelado"                  |
 
 ### Sobre el envío

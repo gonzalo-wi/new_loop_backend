@@ -16,7 +16,6 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
-import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
 import feign.Response;
 import feign.Util;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +49,6 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
     private final ObjectMapper                objectMapper;
     private final AuditService                auditService;
     private final ApplicationEventPublisher   eventPublisher;
-    private final UnregisteredDispenserService unregisteredDispenserService;
 
     @Override
     @Transactional
@@ -62,6 +60,10 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
         }
         if (movement.getStatus() == DispenserMovementStatus.SENT_TO_AGUAS) {
             log.warn("Aguas equipment send skipped: dispenser movement {} was already sent", movementId);
+            return;
+        }
+        if (movement.serialsToSend().isEmpty()) {
+            log.warn("Aguas equipment send skipped: dispenser movement {} has no serial left to send", movementId);
             return;
         }
         attempt(movement, newLog(movement));
@@ -83,6 +85,10 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
         }
         if (movement.getStatus() == DispenserMovementStatus.SENT_TO_AGUAS) {
             log.warn("Aguas equipment retry skipped: dispenser movement {} was already sent", movement.getId());
+            return;
+        }
+        if (movement.serialsToSend().isEmpty()) {
+            log.warn("Aguas equipment retry skipped: dispenser movement {} has no serial left to send", movement.getId());
             return;
         }
         integrationLog.setRetryCount(integrationLog.getRetryCount() + 1);
@@ -182,14 +188,6 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
     }
 
     private void attempt(DispenserMovement movement, IntegrationLog integrationLog) {
-        if (movement.getType() == DispenserMovementType.UNLOAD) {
-            excludeUnregisteredSerials(movement);
-            if (movement.serialsToSend().isEmpty()) {
-                markSkipped(integrationLog, movement);
-                return;
-            }
-        }
-
         var request        = aguasEquipmentMapper.toRequest(movement);
         var requestPayload = serialize(request);
         integrationLog.setRequestPayload(requestPayload);
@@ -209,48 +207,6 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
         } catch (Exception e) {
             markError(integrationLog, movement, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
-    }
-
-    /**
-     * Flags the scanned serials that jMobile reports as "dispenser no registrado" for the movement date.
-     * Those are kept on the movement but left out of the Aguas (and later Odoo) payload.
-     */
-    private void excludeUnregisteredSerials(DispenserMovement movement) {
-        var unregistered = unregisteredDispenserService.findUnregisteredSerials(movement.getMovementDate());
-        if (unregistered.isEmpty()) {
-            movement.getExcludedSerials().clear();
-            return;
-        }
-
-        var excluded = movement.getSerials().stream()
-                .filter(serial -> unregistered.contains(unregisteredDispenserService.normalize(serial)))
-                .toList();
-
-        movement.getExcludedSerials().clear();
-        movement.getExcludedSerials().addAll(excluded);
-
-        if (!excluded.isEmpty()) {
-            log.warn("Movement {}: {} of {} serial(s) excluded as unregistered in jMobile: {}",
-                    movement.getId(), excluded.size(), movement.getSerials().size(), excluded);
-            auditService.register("DISPENSER_SERIALS_EXCLUDED", ENTITY_NAME, movement.getId(), null,
-                    Map.of("excludedSerials", excluded));
-        }
-    }
-
-    /** Every scanned serial was unregistered: nothing is sent to Aguas, so Odoo is not reached either. */
-    private void markSkipped(IntegrationLog integrationLog, DispenserMovement movement) {
-        var reason = "All scanned serials are flagged as unregistered in jMobile for "
-                + movement.getMovementDate() + ": " + movement.getExcludedSerials();
-
-        integrationLog.setStatus(IntegrationStatus.CANCELLED);
-        integrationLog.setErrorMessage(reason);
-
-        movement.setStatus(DispenserMovementStatus.SKIPPED_UNREGISTERED);
-        persist(integrationLog, movement);
-        auditService.register("DISPENSER_SKIPPED_UNREGISTERED", ENTITY_NAME, movement.getId(), null,
-                Map.of("excludedSerials", movement.getExcludedSerials()));
-        log.warn("Aguas equipment {} skipped for movement {}: {}",
-                integrationLog.getOperationType(), movement.getId(), reason);
     }
 
     private void markSent(IntegrationLog integrationLog, DispenserMovement movement, String responseBody) {
