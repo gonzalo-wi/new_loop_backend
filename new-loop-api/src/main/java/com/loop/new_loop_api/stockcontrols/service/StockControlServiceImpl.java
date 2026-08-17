@@ -2,6 +2,7 @@ package com.loop.new_loop_api.stockcontrols.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
+import com.loop.new_loop_api.integrations.aguas.metrics.AguasControlMetrics;
 import com.loop.new_loop_api.users.entity.Role;
 import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.branches.exception.BranchNotFoundException;
@@ -73,6 +74,7 @@ public class StockControlServiceImpl implements StockControlService {
     private final ApplicationEventPublisher eventPublisher;
     private final RemitoPdfGenerator        remitoPdfGenerator;
     private final CurrentUserProvider       currentUserProvider;
+    private final AguasControlMetrics       aguasControlMetrics;
 
     
     @Override
@@ -168,6 +170,7 @@ public class StockControlServiceImpl implements StockControlService {
 
         auditService.register(CORRECT_STOCK_CONTROL_ACTION, "StockControl", saved.getId(), oldValue, response, request.getReason());
         eventPublisher.publishEvent(new StockControlCorrectedEvent(saved.getId()));
+        aguasControlMetrics.recordCorrected();
         return response;
     }
 

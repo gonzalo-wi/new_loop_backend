@@ -11,6 +11,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationLog;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
+import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.integrations.odoo.mapper.OdooRepairMapper;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooRepairService;
@@ -44,6 +45,7 @@ public class OdooRepairServiceImpl implements OdooRepairService {
     private final OdooRepairMapper            odooRepairMapper;
     private final ObjectMapper                objectMapper;
     private final AuditService                auditService;
+    private final IntegrationCallMetrics      integrationCallMetrics;
 
     private final RestClient restClient = RestClient.create();
 
@@ -146,6 +148,7 @@ public class OdooRepairServiceImpl implements OdooRepairService {
         auditService.register("SEND_DISPENSER_TO_ODOO", ENTITY_NAME, movement.getId(), null,
                 Map.of("picking", movement.getOdooPickingName() != null ? movement.getOdooPickingName() : ""));
         log.info("Odoo repair created for movement {} (picking {})", movement.getId(), movement.getOdooPickingName());
+        integrationCallMetrics.recordSuccess(IntegrationName.ODOO);
     }
 
     private void markError(IntegrationLog integrationLog, DispenserMovement movement, String errorMessage) {
@@ -156,6 +159,7 @@ public class OdooRepairServiceImpl implements OdooRepairService {
         persist(integrationLog, movement);
         auditService.register("ODOO_ERROR", ENTITY_NAME, movement.getId(), null, Map.of("error", errorMessage));
         log.error("Odoo {} failed for movement {}: {}", OPERATION, movement.getId(), errorMessage);
+        integrationCallMetrics.recordError(IntegrationName.ODOO);
     }
 
     private void persist(IntegrationLog integrationLog, DispenserMovement movement) {

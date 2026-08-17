@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.integrations.aguas.client.AguasClient;
 import com.loop.new_loop_api.integrations.aguas.mapper.AguasRequestMapper;
+import com.loop.new_loop_api.integrations.aguas.metrics.AguasControlMetrics;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasIntegrationService;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationLog;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
+import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
 import com.loop.new_loop_api.stockcontrols.entity.ControlType;
@@ -48,6 +50,8 @@ public class AguasIntegrationServiceImpl implements AguasIntegrationService {
     private final AguasRequestMapper       aguasRequestMapper;
     private final ObjectMapper             objectMapper;
     private final AuditService             auditService;
+    private final AguasControlMetrics      aguasControlMetrics;
+    private final IntegrationCallMetrics   integrationCallMetrics;
 
     @Override
     @Transactional
@@ -156,6 +160,8 @@ public class AguasIntegrationServiceImpl implements AguasIntegrationService {
                 Map.of("operation", integrationLog.getOperationType(), "status", IntegrationStatus.SENT));
         log.info("Aguas {} sent successfully for control {}. Response: {}",
                 integrationLog.getOperationType(), control.getId(), responseBody);
+        aguasControlMetrics.recordSent(integrationLog.getOperationType());
+        integrationCallMetrics.recordSuccess(IntegrationName.AGUAS);
     }
 
     private void markError(IntegrationLog integrationLog, StockControl control, String errorMessage) {
@@ -168,6 +174,8 @@ public class AguasIntegrationServiceImpl implements AguasIntegrationService {
                 Map.of("operation", integrationLog.getOperationType(), "error", errorMessage));
         log.error("Aguas {} failed for control {}: {}",
                 integrationLog.getOperationType(), control.getId(), errorMessage);
+        aguasControlMetrics.recordRejected(integrationLog.getOperationType());
+        integrationCallMetrics.recordError(IntegrationName.AGUAS);
     }
 
     /** Aguas returns { "data": { "formulario": "R202", "nroremito": 356104 } } on a successful send. */

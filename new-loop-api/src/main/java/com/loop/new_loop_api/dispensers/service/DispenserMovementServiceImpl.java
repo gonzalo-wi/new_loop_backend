@@ -13,6 +13,7 @@ import com.loop.new_loop_api.dispensers.exception.DispenserMovementAlreadyCancel
 import com.loop.new_loop_api.dispensers.exception.DispenserMovementNotFoundException;
 import com.loop.new_loop_api.dispensers.exception.DuplicateDispenserMovementException;
 import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
+import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementService;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
@@ -49,6 +50,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     private final ApplicationEventPublisher   eventPublisher;
     private final AguasEquipmentService       aguasEquipmentService;
     private final UnregisteredDispenserService unregisteredDispenserService;
+    private final DispenserMovementMetrics    dispenserMovementMetrics;
 
     @Override
     @Transactional
@@ -158,6 +160,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         movement.getExcludedSerials().addAll(excluded);
         log.warn("Movement on route {}: {} of {} serial(s) excluded as unregistered in jMobile: {}",
                 movement.getRouteCode(), excluded.size(), movement.getSerials().size(), excluded);
+        dispenserMovementMetrics.recordUnregisteredSerialsExcluded(excluded.size());
 
         if (movement.serialsToSend().isEmpty()) {
             movement.setStatus(DispenserMovementStatus.SKIPPED_UNREGISTERED);

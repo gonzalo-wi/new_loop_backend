@@ -5,6 +5,8 @@ import com.loop.new_loop_api.fleet.exception.FleetProviderException;
 import com.loop.new_loop_api.fleet.exception.TruckLocationNotFoundException;
 import com.loop.new_loop_api.fleet.mapper.TruckLocationMapper;
 import com.loop.new_loop_api.fleet.service.iService.FleetLocationService;
+import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
+import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.powerFleet.client.PowerfleetClient;
 import com.loop.new_loop_api.integrations.powerFleet.dto.PowerfleetTokenRequest;
 import lombok.RequiredArgsConstructor;
@@ -22,8 +24,9 @@ public class FleetLocationServiceImpl implements FleetLocationService {
     private static final Logger log = LoggerFactory.getLogger(FleetLocationServiceImpl.class);
     private static final int    TOKEN_BUFFER_MINUTES = 5;
 
-    private final PowerfleetClient    powerfleetClient;
-    private final TruckLocationMapper truckLocationMapper;
+    private final PowerfleetClient        powerfleetClient;
+    private final TruckLocationMapper     truckLocationMapper;
+    private final IntegrationCallMetrics  integrationCallMetrics;
 
     @Value("${integrations.powerfleet.username}")
     private String username;
@@ -46,10 +49,14 @@ public class FleetLocationServiceImpl implements FleetLocationService {
             if (vehicle == null) {
                 throw new TruckLocationNotFoundException(licensePlate);
             }
-            return truckLocationMapper.toResponse(vehicle);
+            var response = truckLocationMapper.toResponse(vehicle);
+            integrationCallMetrics.recordSuccess(IntegrationName.POWERFLEET);
+            return response;
         } catch (TruckLocationNotFoundException e) {
+            integrationCallMetrics.recordError(IntegrationName.POWERFLEET);
             throw e;
         } catch (Exception e) {
+            integrationCallMetrics.recordError(IntegrationName.POWERFLEET);
             throw new FleetProviderException("Could not retrieve truck location from Powerfleet", e);
         }
     }

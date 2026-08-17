@@ -6,6 +6,7 @@ import com.loop.new_loop_api.dispensers.entity.DispenserMovement;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.event.DispenserMovementSentToAguasEvent;
+import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.integrations.aguas.client.AguasEquipmentClient;
 import com.loop.new_loop_api.integrations.aguas.dto.AguasDeleteEquipmentRequest;
@@ -15,6 +16,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationLog;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
+import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import feign.Response;
 import feign.Util;
@@ -49,6 +51,8 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
     private final ObjectMapper                objectMapper;
     private final AuditService                auditService;
     private final ApplicationEventPublisher   eventPublisher;
+    private final DispenserMovementMetrics    dispenserMovementMetrics;
+    private final IntegrationCallMetrics      integrationCallMetrics;
 
     @Override
     @Transactional
@@ -225,6 +229,8 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
                 Map.of("operation", integrationLog.getOperationType(), "status", IntegrationStatus.SENT));
         log.info("Aguas equipment {} sent successfully for movement {}. Response: {}",
                 integrationLog.getOperationType(), movement.getId(), responseBody);
+        dispenserMovementMetrics.recordSent(movement.getType());
+        integrationCallMetrics.recordSuccess(IntegrationName.AGUAS);
 
         // UNLOAD movements are forwarded to Odoo once Aguas confirms them.
         if (movement.getType() == DispenserMovementType.UNLOAD) {
@@ -242,6 +248,8 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
                 Map.of("operation", integrationLog.getOperationType(), "error", errorMessage));
         log.error("Aguas equipment {} failed for movement {}: {}",
                 integrationLog.getOperationType(), movement.getId(), errorMessage);
+        dispenserMovementMetrics.recordRejected(movement.getType());
+        integrationCallMetrics.recordError(IntegrationName.AGUAS);
     }
 
     private void persist(IntegrationLog integrationLog, DispenserMovement movement) {

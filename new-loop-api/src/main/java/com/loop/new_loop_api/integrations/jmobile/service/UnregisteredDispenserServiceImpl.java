@@ -1,5 +1,7 @@
 package com.loop.new_loop_api.integrations.jmobile.service;
 
+import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
+import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.jmobile.client.UnregisteredDispenserClient;
 import com.loop.new_loop_api.integrations.jmobile.dto.UnregisteredDispenser;
 import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
@@ -19,6 +21,7 @@ public class UnregisteredDispenserServiceImpl implements UnregisteredDispenserSe
     private static final Logger log = LoggerFactory.getLogger(UnregisteredDispenserServiceImpl.class);
 
     private final UnregisteredDispenserClient unregisteredDispenserClient;
+    private final IntegrationCallMetrics      integrationCallMetrics;
 
     @Override
     public Set<String> findUnregisteredSerials(LocalDate date) {
@@ -26,6 +29,7 @@ public class UnregisteredDispenserServiceImpl implements UnregisteredDispenserSe
             var response = unregisteredDispenserClient.getUnregisteredDispensers(date.toString());
             if (response == null || response.getListado() == null) {
                 log.warn("jMobile unregistered dispensers returned no list for {}", date);
+                integrationCallMetrics.recordSuccess(IntegrationName.JMOBILE);
                 return Set.of();
             }
 
@@ -35,11 +39,13 @@ public class UnregisteredDispenserServiceImpl implements UnregisteredDispenserSe
                 if (serial != null) serials.add(serial);
             }
             log.info("jMobile reported {} unregistered dispenser(s) for {}", serials.size(), date);
+            integrationCallMetrics.recordSuccess(IntegrationName.JMOBILE);
             return serials;
         } catch (Exception e) {
             // Fail-open: if the lookup is unavailable the movement is sent as scanned.
             log.error("Failed reading jMobile unregistered dispensers for {}: {}: {}",
                     date, e.getClass().getSimpleName(), e.getMessage());
+            integrationCallMetrics.recordError(IntegrationName.JMOBILE);
             return Set.of();
         }
     }

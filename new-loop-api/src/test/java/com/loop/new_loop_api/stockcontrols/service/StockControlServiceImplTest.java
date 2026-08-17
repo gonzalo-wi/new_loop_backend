@@ -5,6 +5,7 @@ import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
 import com.loop.new_loop_api.common.security.AuthenticatedUser;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
+import com.loop.new_loop_api.integrations.aguas.metrics.AguasControlMetrics;
 import com.loop.new_loop_api.products.repository.ProductRepository;
 import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.routes.repository.RouteRepository;
@@ -58,6 +59,7 @@ class StockControlServiceImplTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private RemitoPdfGenerator     remitoPdfGenerator;
     @Mock private CurrentUserProvider    currentUserProvider;
+    @Mock private AguasControlMetrics    aguasControlMetrics;
 
     private StockControlServiceImpl stockControlService;
 
@@ -68,7 +70,8 @@ class StockControlServiceImplTest {
     void setUp() {
         stockControlService = new StockControlServiceImpl(
                 stockControlRepository, stockControlMapper, branchRepository, routeRepository,
-                productRepository, auditService, eventPublisher, remitoPdfGenerator, currentUserProvider);
+                productRepository, auditService, eventPublisher, remitoPdfGenerator, currentUserProvider,
+                aguasControlMetrics);
 
         controlId = UUID.randomUUID();
         control = entryControl(ControlStatus.SENT_TO_AGUAS);
@@ -121,6 +124,7 @@ class StockControlServiceImplTest {
         verify(stockControlRepository, never()).save(any());
         verify(auditService, never()).register(any(), any(), any(), any(), any(), any());
         verify(eventPublisher, never()).publishEvent(any());
+        verify(aguasControlMetrics, never()).recordCorrected();
     }
 
     @Test
@@ -220,5 +224,6 @@ class StockControlServiceImplTest {
         assertThat(eventCaptor.getValue().controlId()).isEqualTo(controlId);
 
         verify(stockControlRepository, times(1)).save(existingControl);
+        verify(aguasControlMetrics, times(1)).recordCorrected();
     }
 }

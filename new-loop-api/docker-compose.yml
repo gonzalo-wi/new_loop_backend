@@ -24,4 +24,64 @@ services:
       POWERFLEET_USERNAME: ${POWERFLEET_USERNAME}
       POWERFLEET_PASSWORD: ${POWERFLEET_PASSWORD}
       APK_STORAGE_PATH: /app/apk-storage
+      # Credenciales dedicadas para que Prometheus scrapee /actuator/** vía HTTP Basic.
+      ACTUATOR_USERNAME: ${ACTUATOR_USERNAME:-prometheus}
+      ACTUATOR_PASSWORD: ${ACTUATOR_PASSWORD}
     restart: unless-stopped
+
+  # Renders observability/prometheus/prometheus.yml into prometheus-config (substituting
+  # ${PORT}/${ACTUATOR_USERNAME}/${ACTUATOR_PASSWORD}) and exits. The prom/prometheus image
+  # itself has no shell/envsubst, so templating happens in this throwaway init container.
+  prometheus-config:
+    image: alpine:3.20
+    container_name: loop-api-prometheus-config
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/template/prometheus.yml:ro
+      - prometheus-config:/etc/prometheus
+    environment:
+      PORT: ${PORT:-8096}
+      ACTUATOR_USERNAME: ${ACTUATOR_USERNAME:-prometheus}
+      ACTUATOR_PASSWORD: ${ACTUATOR_PASSWORD}
+    command:
+      - sh
+      - -c
+      - "apk add --no-cache gettext >/dev/null && envsubst < /template/prometheus.yml > /etc/prometheus/prometheus.yml"
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: loop-api-prometheus
+    # Mismo patrón de red que "app": el server real aloja todo, así Prometheus
+    # alcanza localhost:${PORT}/actuator/prometheus sin problemas de bridge/DNS.
+    network_mode: host
+    volumes:
+      - prometheus-config:/etc/prometheus
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+      prometheus-config:
+        condition: service_completed_successfully
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: loop-api-grafana
+    # Consistente con app/prometheus: corre en la red del server, resuelve Prometheus por localhost.
+    network_mode: host
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards/json:ro
+    environment:
+      GF_SERVER_HTTP_PORT: 3000
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-config:
+  prometheus-data:
+  grafana-data:

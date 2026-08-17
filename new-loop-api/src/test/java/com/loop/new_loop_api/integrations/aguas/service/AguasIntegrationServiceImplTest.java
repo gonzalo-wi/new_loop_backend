@@ -6,8 +6,11 @@ import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.integrations.aguas.client.AguasClient;
 import com.loop.new_loop_api.integrations.aguas.dto.AguasEntryRequest;
 import com.loop.new_loop_api.integrations.aguas.mapper.AguasRequestMapper;
+import com.loop.new_loop_api.integrations.aguas.metrics.AguasControlMetrics;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationLog;
+import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
+import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
@@ -46,6 +49,8 @@ class AguasIntegrationServiceImplTest {
     @Mock private AguasClient              aguasClient;
     @Mock private AguasRequestMapper       aguasRequestMapper;
     @Mock private AuditService             auditService;
+    @Mock private AguasControlMetrics      aguasControlMetrics;
+    @Mock private IntegrationCallMetrics   integrationCallMetrics;
 
     private AguasIntegrationServiceImpl aguasIntegrationService;
 
@@ -56,7 +61,8 @@ class AguasIntegrationServiceImplTest {
     void setUp() {
         aguasIntegrationService = new AguasIntegrationServiceImpl(
                 stockControlRepository, userRepository, integrationLogRepository,
-                aguasClient, aguasRequestMapper, new ObjectMapper(), auditService);
+                aguasClient, aguasRequestMapper, new ObjectMapper(), auditService,
+                aguasControlMetrics, integrationCallMetrics);
 
         controlId = UUID.randomUUID();
         control = StockControl.builder()
@@ -91,6 +97,8 @@ class AguasIntegrationServiceImplTest {
         verify(aguasClient, never()).sendEntry(any());
         verify(integrationLogRepository, never()).save(any());
         verify(stockControlRepository, never()).save(any());
+        verify(aguasControlMetrics, never()).recordSent(any());
+        verify(integrationCallMetrics, never()).recordSuccess(any());
     }
 
     // 6b. resend() does NOT skip when the control is SENT_TO_AGUAS — it re-posts and re-applies the remito data
@@ -119,6 +127,11 @@ class AguasIntegrationServiceImplTest {
         verify(integrationLogRepository).save(logCaptor.capture());
         assertThat(logCaptor.getValue().getStatus()).isEqualTo(IntegrationStatus.SENT);
         assertThat(logCaptor.getValue().getOperationType()).isEqualTo("IN");
+
+        verify(aguasControlMetrics).recordSent("IN");
+        verify(integrationCallMetrics).recordSuccess(IntegrationName.AGUAS);
+        verify(aguasControlMetrics, never()).recordRejected(any());
+        verify(integrationCallMetrics, never()).recordError(any());
     }
 
     @Test
@@ -129,6 +142,8 @@ class AguasIntegrationServiceImplTest {
 
         verify(aguasClient, never()).sendEntry(any());
         verify(integrationLogRepository, never()).save(any());
+        verify(aguasControlMetrics, never()).recordSent(any());
+        verify(integrationCallMetrics, never()).recordSuccess(any());
     }
 
     @Test
@@ -153,5 +168,10 @@ class AguasIntegrationServiceImplTest {
         var controlCaptor = ArgumentCaptor.forClass(StockControl.class);
         verify(stockControlRepository).save(controlCaptor.capture());
         assertThat(controlCaptor.getValue().getStatus()).isEqualTo(ControlStatus.AGUAS_ERROR);
+
+        verify(aguasControlMetrics).recordRejected("IN");
+        verify(integrationCallMetrics).recordError(IntegrationName.AGUAS);
+        verify(aguasControlMetrics, never()).recordSent(any());
+        verify(integrationCallMetrics, never()).recordSuccess(any());
     }
 }

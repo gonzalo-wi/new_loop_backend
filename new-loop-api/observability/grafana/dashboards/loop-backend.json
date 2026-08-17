@@ -1,0 +1,166 @@
+{
+  "id": null,
+  "uid": "loop-backend-overview",
+  "title": "Loop Backend - Overview",
+  "description": "Request rate, error rate, latency (p95/p99) and Loop business metrics (Aguas controls, dispenser movements) for new-loop-api.",
+  "tags": ["loop", "backend", "new-loop-api"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "HTTP request rate",
+      "description": "Requests per second, by endpoint and status code.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"new-loop-api\"}[5m])) by (uri, status)",
+          "legendFormat": "{{uri}} [{{status}}]",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "HTTP error rate (5xx)",
+      "description": "Server error responses per second.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"new-loop-api\", status=~\"5..\"}[5m]))",
+          "legendFormat": "5xx errors/s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(loop_errors_total{application=\"new-loop-api\"}[5m])) by (exception)",
+          "legendFormat": "{{exception}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "HTTP latency p95 / p99",
+      "description": "Request latency percentiles from http_server_requests histograms.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=\"new-loop-api\"}[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application=\"new-loop-api\"}[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Errors by endpoint (loop_errors_total)",
+      "description": "Application errors handled by GlobalExceptionHandler, by endpoint.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum(rate(loop_errors_total{application=\"new-loop-api\"}[5m])) by (endpoint)",
+          "legendFormat": "{{endpoint}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Aguas stock controls - enviados / corregidos / rechazados",
+      "description": "loop_control_aguas_enviado_total, loop_control_aguas_corregido_total, loop_control_aguas_rechazado_total.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum(rate(loop_control_aguas_enviado_total{application=\"new-loop-api\"}[5m])) by (operation)",
+          "legendFormat": "enviado [{{operation}}]",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(loop_control_aguas_rechazado_total{application=\"new-loop-api\"}[5m])) by (operation)",
+          "legendFormat": "rechazado [{{operation}}]",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(loop_control_aguas_corregido_total{application=\"new-loop-api\"}[5m]))",
+          "legendFormat": "corregido",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Dispenser movements - Aguas + no registrados",
+      "description": "loop_dispenser_movement_aguas_enviado_total, loop_dispenser_movement_aguas_rechazado_total, loop_dispenser_no_registrado_total.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum(rate(loop_dispenser_movement_aguas_enviado_total{application=\"new-loop-api\"}[5m])) by (movement_type)",
+          "legendFormat": "enviado [{{movement_type}}]",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(loop_dispenser_movement_aguas_rechazado_total{application=\"new-loop-api\"}[5m])) by (movement_type)",
+          "legendFormat": "rechazado [{{movement_type}}]",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(loop_dispenser_no_registrado_total{application=\"new-loop-api\"}[5m]))",
+          "legendFormat": "no registrado (jMobile)",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Integraciones externas - llamadas por resultado",
+      "description": "loop_integration_calls_total, tageado por integration (AGUAS/ODOO/POWERFLEET/JMOBILE) y result (SUCCESS/ERROR).",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum(rate(loop_integration_calls_total{application=\"new-loop-api\"}[5m])) by (integration, result)",
+          "legendFormat": "{{integration}} [{{result}}]",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" }
+      }
+    ]
+  }
+}

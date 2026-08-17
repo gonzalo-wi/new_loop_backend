@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Template rendered into /etc/prometheus/prometheus.yml at container start (see docker-compose.yml),
+# substituting ${PORT}/${ACTUATOR_USERNAME}/${ACTUATOR_PASSWORD} from the environment via envsubst.
+# This keeps the scrape port and credentials out of this file (no secrets committed).
+scrape_configs:
+  - job_name: "new-loop-api"
+    metrics_path: "/actuator/prometheus"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["localhost:${PORT}"]
+    basic_auth:
+      username: "${ACTUATOR_USERNAME}"
+      password: "${ACTUATOR_PASSWORD}"
