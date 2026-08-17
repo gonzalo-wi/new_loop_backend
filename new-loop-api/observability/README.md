@@ -14,9 +14,14 @@ red del server.
 - `grafana/provisioning/datasources/datasource.yml` — datasource de Prometheus
   (`http://localhost:9090`, vía host networking) provisionado automáticamente.
 - `grafana/provisioning/dashboards/dashboards.yml` — provider que carga los
-  dashboards JSON de `grafana/dashboards/`.
-- `grafana/dashboards/loop-backend.json` — dashboard base: request rate, error
-  rate, latencia p95/p99, y las métricas de negocio de Aguas/dispensers.
+  dashboards JSON de `grafana/provisioning/dashboards/json/`.
+- `grafana/provisioning/dashboards/json/loop-backend.json` — dashboard base:
+  request rate, error rate, latencia p95/p99, y las métricas de negocio de
+  Aguas/dispensers. Vive dentro del árbol de `provisioning/` (y no en una
+  carpeta hermana) para que un único bind mount de solo lectura
+  (`./observability/grafana/provisioning:/etc/grafana/provisioning:ro`)
+  alcance para todo — montar un segundo volumen anidado dentro de un mount
+  `:ro` falla en Docker (no puede crear el mountpoint).
 
 ## Cómo levantar el stack
 
