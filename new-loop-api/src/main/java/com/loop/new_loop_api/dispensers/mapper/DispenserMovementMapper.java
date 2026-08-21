@@ -39,6 +39,7 @@ public class DispenserMovementMapper {
                 .odooStatus(movement.getOdooStatus())
                 .odooPickingId(movement.getOdooPickingId())
                 .odooPickingName(movement.getOdooPickingName())
+                .odooReference(movement.getOdooReference())
                 .registeredBy(movement.getRegisteredBy())
                 .registeredByUsername(movement.getRegisteredByUsername())
                 .createdAt(movement.getCreatedAt())

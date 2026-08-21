@@ -232,10 +232,9 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
         dispenserMovementMetrics.recordSent(movement.getType());
         integrationCallMetrics.recordSuccess(IntegrationName.AGUAS);
 
-        // UNLOAD movements are forwarded to Odoo once Aguas confirms them.
-        if (movement.getType() == DispenserMovementType.UNLOAD) {
-            eventPublisher.publishEvent(new DispenserMovementSentToAguasEvent(movement.getId()));
-        }
+        // Every movement is forwarded to Odoo once Aguas confirms it: UNLOAD -> repair intake,
+        // LOAD -> dispatch/salida to reparto. Each Odoo listener self-filters by movement type.
+        eventPublisher.publishEvent(new DispenserMovementSentToAguasEvent(movement.getId()));
     }
 
     private void markError(IntegrationLog integrationLog, DispenserMovement movement, String errorMessage) {

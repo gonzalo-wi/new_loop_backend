@@ -5,6 +5,7 @@ import com.loop.new_loop_api.integrations.aguas.service.iService.AguasIntegratio
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
+import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooRepairService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -13,24 +14,32 @@ import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
-/** Routes an integration-log retry to the handler that owns it (by integration + entity). */
+/** Routes an integration-log retry to the handler that owns it (by integration + entity/operation). */
 @Service
 @RequiredArgsConstructor
 public class IntegrationRetryDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(IntegrationRetryDispatcher.class);
 
+    private static final String OPERATION_REPAIR_CREATE = "REPAIR_CREATE";
+
     private final IntegrationLogRepository integrationLogRepository;
     private final AguasIntegrationService  aguasIntegrationService;   // Aguas / StockControl
     private final AguasEquipmentService    aguasEquipmentService;     // Aguas / DispenserMovement
-    private final OdooRepairService        odooRepairService;         // Odoo  / DispenserMovement
+    private final OdooRepairService        odooRepairService;         // Odoo  / DispenserMovement (UNLOAD -> repair intake)
+    private final OdooDispatchService      odooDispatchService;       // Odoo  / DispenserMovement (LOAD -> dispatch/salida)
 
     public void retry(UUID logId) {
         var integrationLog = integrationLogRepository.findById(logId)
                 .orElseThrow(() -> new IntegrationLogNotFoundException(logId));
 
         if (integrationLog.getIntegrationName() == IntegrationName.ODOO) {
-            odooRepairService.retry(logId);
+            // Two independent Odoo flows share DispenserMovement: route by operationType.
+            if (OPERATION_REPAIR_CREATE.equals(integrationLog.getOperationType())) {
+                odooRepairService.retry(logId);
+            } else {
+                odooDispatchService.retry(logId);
+            }
             return;
         }
 

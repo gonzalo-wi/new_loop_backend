@@ -64,7 +64,9 @@ public class DispenserMovement {
     @Column(name = "aguas_movement_id", length = 50)
     private String aguasMovementId;
 
-    // Odoo repair intake (only for UNLOAD movements, sent after Aguas succeeds)
+    // Odoo tracking, sent after Aguas succeeds: repair intake for UNLOAD, dispatch/salida to
+    // reparto for LOAD. A row is always one type or the other, so these columns are shared
+    // without conflict between the two flows.
     @Column(name = "odoo_status", length = 20)
     private String odooStatus;
 
@@ -73,6 +75,11 @@ public class DispenserMovement {
 
     @Column(name = "odoo_picking_name", length = 100)
     private String odooPickingName;
+
+    // External reference sent to Odoo (LOAD/salida only) so retries reuse the same value and
+    // Odoo can dedupe a retried call instead of moving stock twice.
+    @Column(name = "odoo_reference", length = 100)
+    private String odooReference;
 
     @Column(name = "registered_by")
     private UUID registeredBy;

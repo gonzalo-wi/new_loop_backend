@@ -3,10 +3,12 @@ package com.loop.new_loop_api.dispensers.controller;
 import com.loop.new_loop_api.common.response.ApiResponse;
 import com.loop.new_loop_api.dispensers.dto.CreateDispenserMovementRequest;
 import com.loop.new_loop_api.dispensers.dto.DispenserMovementResponse;
+import com.loop.new_loop_api.dispensers.dto.ValidateOdooEquipmentRequest;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementService;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
+import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -28,6 +30,7 @@ public class DispenserMovementController {
 
     private final DispenserMovementService dispenserMovementService;
     private final AguasEquipmentService    aguasEquipmentService;
+    private final OdooDispatchService      odooDispatchService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<DispenserMovementResponse>> createMovement(
@@ -57,6 +60,19 @@ public class DispenserMovementController {
     @GetMapping("/aguas/states")
     public ResponseEntity<ApiResponse<Object>> getAguasStates() {
         return ResponseEntity.ok(ApiResponse.ok(aguasEquipmentService.getDestinationStates()));
+    }
+
+    @GetMapping("/odoo/available-equipment")
+    public ResponseEntity<ApiResponse<Object>> getOdooAvailableEquipment(
+            @RequestParam(required = false) Integer limite,
+            @RequestParam(required = false) Integer offset) {
+        return ResponseEntity.ok(ApiResponse.ok(odooDispatchService.getAvailableEquipment(limite, offset)));
+    }
+
+    @PostMapping("/odoo/validate-equipment")
+    public ResponseEntity<ApiResponse<Object>> validateOdooEquipment(
+            @Valid @RequestBody ValidateOdooEquipmentRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(odooDispatchService.validateEquipment(request.getEquipos())));
     }
 
     @GetMapping("/{id}")

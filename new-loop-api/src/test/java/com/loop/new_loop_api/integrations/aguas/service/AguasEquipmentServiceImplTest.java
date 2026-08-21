@@ -108,8 +108,8 @@ class AguasEquipmentServiceImplTest {
         verify(dispenserMovementMetrics).recordSent(DispenserMovementType.LOAD);
         verify(integrationCallMetrics).recordSuccess(IntegrationName.AGUAS);
         verify(dispenserMovementMetrics, never()).recordRejected(any());
-        // LOAD movements are not forwarded to Odoo.
-        verify(eventPublisher, never()).publishEvent(any());
+        // LOAD movements are now forwarded to Odoo too (dispatch/salida to reparto).
+        verify(eventPublisher).publishEvent(any(Object.class));
     }
 
     @Test
