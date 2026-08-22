@@ -1,8 +1,10 @@
 # Dispensers — Carga y descarga en camión
 
-Módulo para registrar la carga y descarga de dispensers (equipos) en los camiones, escaneando sus números de serie. Cada movimiento se envía automáticamente a Aguas.
+Módulo para registrar la carga y descarga de dispensers (equipos) en los camiones, escaneando sus números de serie. Cada movimiento se envía automáticamente a Aguas. Además, la **carga** (`LOAD`) se registra también en **Odoo** (salida de equipos al reparto).
 
 Usuarios: `CARGADOR_DISPENSERS` y `ADMIN`.
+
+> **⚠️ Novedad (para el equipo mobile):** el flujo de carga (`LOAD`) ahora impacta también en Odoo, además de Aguas. **La app puede seguir funcionando igual que hasta ahora** (el envío a Odoo es automático en el backend, no hay cambios obligatorios en el request de creación). Lo nuevo y opcional está en dos endpoints de consulta (equipos disponibles y validación de series) y en cuatro campos `odoo*` de la respuesta. Ver [Salida a Odoo (carga / LOAD)](#salida-a-odoo-carga--load).
 
 ---
 
@@ -16,6 +18,7 @@ Usuarios: `CARGADOR_DISPENSERS` y `ADMIN`.
 - [5. Ver detalle](#5-ver-detalle)
 - [6. Corregir un movimiento (modificar)](#6-corregir-un-movimiento-modificar)
 - [7. Cancelar un movimiento (eliminar)](#7-cancelar-un-movimiento-eliminar)
+- [Salida a Odoo (carga / LOAD)](#salida-a-odoo-carga--load)
 - [Referencia de campos](#referencia-de-campos)
 - [Estados y envío a Aguas](#estados-y-envío-a-aguas)
 
@@ -160,6 +163,8 @@ Authorization: Bearer <token>
 ```
 
 > El movimiento se crea con `status: REGISTERED` y se manda a Aguas **en segundo plano**. El estado cambia a `SENT_TO_AGUAS` o `AGUAS_ERROR` unos instantes después — consultar el detalle o el listado para ver el estado final.
+
+> **Cargas (`LOAD`) y Odoo:** una vez que Aguas acepta la carga (`status: SENT_TO_AGUAS`), el backend la registra **también en Odoo**, en segundo plano. El resultado de Odoo **no viene en esta respuesta**: aparece unos instantes después en los campos `odooStatus`, `odooPickingName`, `odooPickingId` y `odooReference` (consultar el detalle o el listado). Aguas y Odoo son **independientes**: una carga puede quedar `SENT_TO_AGUAS` (Aguas OK) con `odooStatus: ERROR` (Odoo la rechazó). Ver [Salida a Odoo (carga / LOAD)](#salida-a-odoo-carga--load).
 
 > **Descargas (`UNLOAD`):** antes de responder, el backend descarta los seriales que figuran como "no registrados" en jMobile para esa fecha. Los descartados vienen en `excludedSerials` y no se envían a Aguas ni a Odoo. Si no queda ninguno para enviar, el movimiento se crea con `status: SKIPPED_UNREGISTERED` y no se llama a Aguas. Detalle completo en [DISPENSERS_NO_REGISTRADOS.md](./DISPENSERS_NO_REGISTRADOS.md).
 
@@ -319,6 +324,108 @@ Authorization: Bearer <token>
 
 ---
 
+## Salida a Odoo (carga / LOAD)
+
+Cuando se registra una **carga** (`LOAD`), además de Aguas el backend la envía a Odoo, que mueve el stock de los equipos de *expedición* al *reparto*. Esto es **automático**: no cambia el `POST /dispenser-movements`. Los dos endpoints de abajo son **opcionales** y sirven para mejorar la experiencia del operario antes de confirmar la carga.
+
+Todas las respuestas van envueltas en `data` (patrón `ApiResponse` de siempre) y adentro llevan **el resultado de Odoo tal cual** (`success`, `total`, etc.).
+
+### A. Equipos disponibles para cargar
+
+Lo que la app debería pedir al abrir la carga de un reparto: la lista de equipos que están listos para subir al camión.
+
+```
+GET /dispenser-movements/odoo/available-equipment
+Authorization: Bearer <token>
+```
+
+Query params (opcionales, para paginar si `total > devueltos`):
+
+| Param    | Tipo    | Descripción                        |
+|----------|---------|------------------------------------|
+| `limite` | integer | Máximo de equipos a traer          |
+| `offset` | integer | Desde qué posición (para paginar)  |
+
+Si no se mandan, Odoo aplica su default. Para traer la página siguiente: repetir con `offset` (ej. `?limite=500&offset=500`).
+
+#### Response `200 OK`
+```json
+{
+  "data": {
+    "success": true,
+    "total": 5,
+    "devueltos": 5,
+    "equipos": [
+      {
+        "serie": "TEST-LOOP-01",
+        "producto": "Equipo Frio Calor",
+        "ubicacion": "AC/EQUIPOS FC REPARADOS",
+        "fecha_disponible": "2026-08-19"
+      }
+    ]
+  }
+}
+```
+
+### B. Validar series escaneadas
+
+Opcional pero recomendado: valida contra Odoo, en el momento, las series que el operario va escaneando, para avisar si alguna no corresponde **sin esperar** a confirmar la carga.
+
+```
+POST /dispenser-movements/odoo/validate-equipment
+Authorization: Bearer <token>
+```
+
+#### Request body
+```json
+{
+  "equipos": ["TEST-LOOP-01", "LO-QUE-SEA"]
+}
+```
+
+| Campo     | Tipo  | Requerido | Descripción                              |
+|-----------|-------|-----------|------------------------------------------|
+| `equipos` | array | Sí        | Series a validar (al menos una, no vacías) |
+
+#### Response `200 OK`
+
+Adentro de `data` viene la respuesta de Odoo, con un ítem por cada serie (`disponible: true/false`):
+
+```json
+{
+  "data": {
+    "equipos": [
+      { "serie": "TEST-LOOP-01", "disponible": true,  "ubicacion": "AC/EQUIPOS FC REPARADOS" },
+      { "serie": "LO-QUE-SEA",   "disponible": false, "motivo": "El numero de serie no existe en Odoo" }
+    ]
+  }
+}
+```
+
+> El backend devuelve el `result` de Odoo sin transformarlo, así que la estructura exacta (por ejemplo si la lista viene como `equipos` o directamente como array) es la que responda Odoo. **La app debe leer, por cada serie, `disponible` y — si es `false` — `motivo`.** Motivos posibles: `"El numero de serie no existe en Odoo"`, `"El equipo esta en <ubicacion>, no en expedicion"`, `"El equipo no tiene stock disponible"`.
+
+### C. "Todo o nada" al confirmar la carga
+
+La confirmación de la carga en Odoo la hace el backend solo (no hay que llamar a ningún endpoint extra: se dispara tras el `POST /dispenser-movements` de tipo `LOAD`, una vez que Aguas acepta). Reglas a tener en cuenta para mostrar el resultado al operario:
+
+- **Es todo o nada:** si **una sola** serie de la carga no está disponible en Odoo, **no se registra nada** en Odoo y el movimiento queda con `odooStatus: ERROR`. El detalle de qué series fallaron y por qué queda en el log de integración (`GET /integration-logs?entityId={movementId}`, campo `errorMessage`). Aguas, en cambio, **sí** registró la carga (por eso conviene validar con el endpoint B **antes** de confirmar).
+- **Idempotencia:** el backend genera una referencia única por carga (`odooReference`). Si hay un reintento (corte de red), Odoo reconoce esa referencia y **no duplica** el movimiento de stock; devuelve el mismo comprobante. La app no tiene que hacer nada para esto.
+- **Comprobante:** cuando `odooStatus: SENT`, el campo `odooPickingName` es el **comprobante** de la carga en Odoo (guardarlo/mostrarlo; sirve para reclamar si algo no cierra después).
+
+### Cómo mostrar el estado de Odoo en la app
+
+`odooStatus` es **independiente** del `status` (que refleja Aguas). Para una carga (`LOAD`):
+
+| `odooStatus` | Significado                                             | Qué mostrar               |
+|--------------|--------------------------------------------------------|---------------------------|
+| `null`       | Todavía no se envió a Odoo (o Aguas aún no confirmó)    | "Enviando a Odoo…"        |
+| `SENT`       | Registrado en Odoo — `odooPickingName` es el comprobante | "Odoo ✓ (comprobante)"    |
+| `ERROR`      | Odoo rechazó la carga (se reintenta automáticamente)   | "Error en Odoo — reintentando" |
+
+> Como el envío es en segundo plano, para ver el resultado hay que **volver a consultar** el movimiento (`GET /dispenser-movements/{id}`) unos instantes después de crearlo, igual que ya se hace con el `status` de Aguas. Los reintintos automáticos son los mismos de Aguas (cada 5 min, hasta 5 veces).
+
+---
+
 ## Referencia de campos
 
 ### Campos de la respuesta
@@ -336,6 +443,10 @@ Authorization: Bearer <token>
 | `serials`              | array    | Números de serie escaneados                        |
 | `excludedSerials`      | array    | Seriales escaneados que **no** se enviaron por figurar como no registrados (solo `UNLOAD`) |
 | `aguasMovementId`      | string   | ID del movimiento en Aguas (`null` hasta enviarse) |
+| `odooStatus`           | string   | Resultado del envío a Odoo: `SENT`, `ERROR` o `null` (aún no enviado). Independiente de `status`. Para `LOAD` (carga a reparto) y `UNLOAD` (ingreso a reparación) |
+| `odooPickingName`      | string   | Comprobante del movimiento en Odoo (`null` hasta enviarse) |
+| `odooPickingId`        | integer  | ID del picking en Odoo (`null` hasta enviarse)     |
+| `odooReference`        | string   | Referencia única que genera el backend para la carga (idempotencia); `null` hasta el primer envío |
 | `registeredBy`         | UUID     | ID del usuario que registró                        |
 | `registeredByUsername` | string   | Usuario que registró (se envía a Aguas)            |
 | `createdAt`            | datetime | Fecha de creación                                  |
@@ -368,3 +479,8 @@ Authorization: Bearer <token>
 ### Mapeo con Aguas (referencia interna)
 - `LOAD`   → `POST /api/aguas/registrar-salida-camion`
 - `UNLOAD` → `POST /api/aguas/registrar-vuelta-camion`
+
+### Mapeo con Odoo (referencia interna)
+- `LOAD`   → `POST /api/v1/salida/create` (salida de equipos al reparto) — tras confirmarse en Aguas
+- `UNLOAD` → registro de ingreso a reparación — tras confirmarse en Aguas
+- Consultas de solo lectura: `POST /api/v1/salida/disponibles` y `POST /api/v1/salida/validar` (expuestas a la app como `GET /odoo/available-equipment` y `POST /odoo/validate-equipment`)
