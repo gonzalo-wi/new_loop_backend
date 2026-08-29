@@ -8,6 +8,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
 ### Added
+- Listado de movimientos de dispenser: se puede filtrar por fecha de registro (`createdFrom`/`createdTo`), además de por la fecha del movimiento. Sirve para ver lo que se cargó en el día aunque la carga esté fechada para el próximo reparto.
 - Validación de dispensers contra Odoo al registrar una carga (LOAD): antes de enviar a Aguas/Odoo, el backend valida las series y excluye automáticamente las que Odoo reporta como no disponibles (no existen, están en otra ubicación o sin stock), dejándolas marcadas como excluidas. La carga continúa con las series válidas; si ninguna está disponible, el movimiento se cierra sin enviarse. Si Odoo no responde, no se bloquea la carga.
 - Salida de dispensers (carga al reparto): cuando un movimiento LOAD se confirma en Aguas, ahora también se registra en Odoo, moviendo el stock de expedición al reparto. La operación es "todo o nada" (si una serie no está disponible no se registra nada y se informa el detalle) y es idempotente: un reintento por corte de conexión no duplica el movimiento de stock. Se suman dos consultas para la app: equipos disponibles para cargar y validación de series escaneadas contra Odoo.
 - El rol SUPERVISOR puede corregir un control de entrada (IN) ya enviado y aceptado por Aguas: la corrección se reenvía a Aguas pisando el registro anterior y queda auditada con el usuario que la hizo, un motivo obligatorio y la comparación entre el control previo y el corregido.

@@ -15,6 +15,7 @@ public interface DispenserMovementService {
     DispenserMovementResponse createMovement(CreateDispenserMovementRequest request);
     Page<DispenserMovementResponse> getAllMovements(DispenserMovementType type, String routeCode,
                                                     DispenserMovementStatus status, LocalDate from, LocalDate to,
+                                                    LocalDate createdFrom, LocalDate createdTo,
                                                     Pageable pageable);
     DispenserMovementResponse getMovementById(UUID id);
     DispenserMovementResponse cancelMovement(UUID id);

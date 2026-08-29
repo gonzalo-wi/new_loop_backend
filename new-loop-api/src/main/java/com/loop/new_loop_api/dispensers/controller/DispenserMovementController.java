@@ -47,8 +47,11 @@ public class DispenserMovementController {
             @RequestParam(required = false) DispenserMovementStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        var page = dispenserMovementService.getAllMovements(type, routeCode, status, from, to, pageable);
+        var page = dispenserMovementService.getAllMovements(type, routeCode, status, from, to,
+                createdFrom, createdTo, pageable);
         return ResponseEntity.ok(ApiResponse.ok(page, "Dispenser movements retrieved successfully"));
     }
 

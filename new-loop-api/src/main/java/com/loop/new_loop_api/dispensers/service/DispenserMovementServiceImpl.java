@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -76,6 +77,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     @Transactional(readOnly = true)
     public Page<DispenserMovementResponse> getAllMovements(DispenserMovementType type, String routeCode,
                                                            DispenserMovementStatus status, LocalDate from, LocalDate to,
+                                                           LocalDate createdFrom, LocalDate createdTo,
                                                            Pageable pageable) {
         Specification<DispenserMovement> spec = (r, q, cb) -> cb.conjunction();
         if (type      != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("type"), type));
@@ -83,6 +85,10 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         if (status    != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("status"), status));
         if (from      != null) spec = spec.and((r, q, cb) -> cb.greaterThanOrEqualTo(r.<LocalDate>get("movementDate"), from));
         if (to        != null) spec = spec.and((r, q, cb) -> cb.lessThanOrEqualTo(r.<LocalDate>get("movementDate"), to));
+        // createdFrom/createdTo filtran por fecha de registro (createdAt es un timestamp): se abarca
+        // el día completo, desde las 00:00 del from hasta antes de las 00:00 del día siguiente al to.
+        if (createdFrom != null) spec = spec.and((r, q, cb) -> cb.greaterThanOrEqualTo(r.<LocalDateTime>get("createdAt"), createdFrom.atStartOfDay()));
+        if (createdTo   != null) spec = spec.and((r, q, cb) -> cb.lessThan(r.<LocalDateTime>get("createdAt"), createdTo.plusDays(1).atStartOfDay()));
         return dispenserMovementRepository.findAll(spec, pageable).map(dispenserMovementMapper::toResponse);
     }
 
