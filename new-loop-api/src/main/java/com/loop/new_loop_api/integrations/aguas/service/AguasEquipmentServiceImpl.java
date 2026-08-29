@@ -285,7 +285,10 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
     private Object readCatalog(Response response) {
         try (response) {
             var body = readBody(response);
-            return body == null ? null : objectMapper.readTree(body);
+            // Parse to a plain Map/List (not a raw JsonNode): returning a JsonNode makes Spring's
+            // Jackson serialize the node's own getters ("array", "object", "nodeType"...) instead of
+            // its content, which breaks the client reading the catalog.
+            return body == null ? null : objectMapper.readValue(body, Object.class);
         } catch (Exception e) {
             log.error("Failed reading Aguas catalog: {}", e.getMessage());
             return null;

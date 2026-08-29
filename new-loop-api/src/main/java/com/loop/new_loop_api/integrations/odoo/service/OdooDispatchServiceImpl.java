@@ -109,21 +109,20 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
     @Override
     public Object getAvailableEquipment(Integer limite, Integer offset) {
         var request = odooDispatchMapper.toAvailableRequest(limite, offset);
-        return readCatalog(PATH_AVAILABLE, request);
+        return toPlain(readCatalogNode(PATH_AVAILABLE, request));
     }
 
     @Override
     public Object validateEquipment(List<String> equipos) {
         var request = odooDispatchMapper.toValidateRequest(equipos);
-        return readCatalog(PATH_VALIDATE, request);
+        return toPlain(readCatalogNode(PATH_VALIDATE, request));
     }
 
     @Override
     public Set<String> findUnavailableEquipos(List<String> equipos) {
         if (equipos == null || equipos.isEmpty()) return Set.of();
         var request = odooDispatchMapper.toValidateRequest(equipos);
-        var result  = (JsonNode) readCatalog(PATH_VALIDATE, request);
-        return parseUnavailable(result);
+        return parseUnavailable(readCatalogNode(PATH_VALIDATE, request));
     }
 
     /**
@@ -340,7 +339,7 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
                 .orElse("");
     }
 
-    private Object readCatalog(String path, Object request) {
+    private JsonNode readCatalogNode(String path, Object request) {
         try {
             var http = restClient.post()
                     .uri(baseUrl + path)
@@ -355,6 +354,15 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
             log.error("Failed reading Odoo catalog {}: {}", path, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Converts a Jackson tree node to a plain Map/List before it leaves the service. Returning a raw
+     * JsonNode from the controller makes Spring's Jackson serialize the node's own getters
+     * ("array", "object", "nodeType"...) instead of its content, breaking the client.
+     */
+    private Object toPlain(JsonNode node) {
+        return node == null ? null : objectMapper.convertValue(node, Object.class);
     }
 
     private String serialize(Object value) {

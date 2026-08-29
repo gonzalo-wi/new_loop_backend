@@ -316,6 +316,24 @@ class OdooDispatchServiceImplTest {
     }
 
     @Test
+    void should_returnPlainMapNotJsonNode_when_getAvailableEquipment() {
+        // Guard against returning a raw JsonNode: the controller would serialize its getters
+        // (array/object/nodeType...) instead of the content, breaking the client.
+        server.expect(requestTo(AVAILABLE_URL))
+                .andRespond(withSuccess(
+                        "{\"result\":{\"equipos\":[{\"serie\":\"SN-9\"}],\"total\":1,\"devueltos\":1}}",
+                        MediaType.APPLICATION_JSON));
+
+        var result = service.getAvailableEquipment(null, null);
+        server.verify();
+
+        assertThat(result).isInstanceOf(java.util.Map.class);
+        @SuppressWarnings("unchecked")
+        var map = (java.util.Map<String, Object>) result;
+        assertThat(map.keySet()).contains("equipos", "total", "devueltos").doesNotContain("nodeType");
+    }
+
+    @Test
     void should_returnNull_when_getAvailableEquipmentFailsWithNetworkError() {
         server.expect(requestTo(AVAILABLE_URL)).andRespond(withServerError());
 

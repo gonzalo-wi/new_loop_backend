@@ -18,6 +18,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Salida de dispensers a Odoo: si al despachar algunos equipos no están disponibles en expedición, ahora se despachan igual los que sí lo están (antes Odoo rechazaba el lote completo y no salía ninguno). Los equipos no disponibles quedan registrados en el detalle del error. Si ninguno está disponible, el despacho se cierra como error definitivo y deja de reintentarse.
 
 ### Fixed
+- Endpoints de catálogo de Odoo (equipos disponibles y validación de series) y de Aguas (ubicaciones/estados): devolvían una respuesta corrupta (las propiedades internas del árbol JSON en vez del contenido), por lo que la app no veía ningún equipo/dato. Ahora devuelven el JSON real.
 - Salida y vuelta de dispensers a Aguas: se corrige el rechazo HTTP 400 ("Todos los campos son requeridos") que dejaba los movimientos reintentando en bucle. La salida al reparto ahora envía los campos que Aguas exige (`esrecarga=1` y `accion=3`) y la vuelta a planta va con `esrecarga=0`. Además, cuando el movimiento se registró sin usuario de sesión, se usa el nombre del técnico como usuario para no mandar el campo vacío.
 
 ### Removed
