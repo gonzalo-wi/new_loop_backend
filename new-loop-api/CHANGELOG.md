@@ -16,7 +16,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 -
 
 ### Fixed
--
+- Salida y vuelta de dispensers a Aguas: se corrige el rechazo HTTP 400 ("Todos los campos son requeridos") que dejaba los movimientos reintentando en bucle. Ahora se envía el campo obligatorio `esrecarga` (siempre falso para estos movimientos) y, cuando el movimiento se registró sin usuario de sesión, se usa el nombre del técnico como usuario para no mandar el campo vacío.
 
 ### Removed
 -

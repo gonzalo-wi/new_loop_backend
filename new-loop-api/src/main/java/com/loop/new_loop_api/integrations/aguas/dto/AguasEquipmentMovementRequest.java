@@ -26,4 +26,7 @@ public class AguasEquipmentMovementRequest {
 
     @JsonProperty("idestadodestino")
     private Integer idEstadoDestino;
+
+    @JsonProperty("esrecarga")
+    private Boolean esRecarga;
 }
