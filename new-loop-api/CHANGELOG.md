@@ -13,7 +13,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Observabilidad del backend: métricas de rendimiento, errores y eventos clave de negocio (controles enviados/rechazados/corregidos a Aguas, movimientos de dispenser, llamadas a integraciones externas) ahora se pueden monitorear en tiempo real desde Grafana, alimentado por Prometheus. El stack se levanta junto con la app vía `docker compose up`.
 
 ### Changed
--
+- La integración de ingreso a reparación (UNLOAD) de dispensers ahora apunta a la misma instancia de Odoo que la salida al reparto; ambas quedan unificadas en un único entorno.
 
 ### Fixed
 - Salida y vuelta de dispensers a Aguas: se corrige el rechazo HTTP 400 ("Todos los campos son requeridos") que dejaba los movimientos reintentando en bucle. Ahora se envía el campo obligatorio `esrecarga` (siempre falso para estos movimientos) y, cuando el movimiento se registró sin usuario de sesión, se usa el nombre del técnico como usuario para no mandar el campo vacío.
