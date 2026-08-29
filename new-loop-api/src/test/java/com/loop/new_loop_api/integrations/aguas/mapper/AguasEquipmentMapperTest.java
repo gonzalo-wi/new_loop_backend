@@ -25,10 +25,21 @@ class AguasEquipmentMapperTest {
     }
 
     @Test
-    void should_alwaysSendEsRecargaFalse() {
-        var request = mapper.toRequest(baseMovement().registeredByUsername("gwinazki").build());
+    void should_sendEsRecarga1AndAccion3_when_load() {
+        var request = mapper.toRequest(
+                baseMovement().type(DispenserMovementType.LOAD).registeredByUsername("gwinazki").build());
 
-        assertThat(request.getEsRecarga()).isFalse();
+        assertThat(request.getEsRecarga()).isEqualTo(1);
+        assertThat(request.getAccion()).isEqualTo(3);
+    }
+
+    @Test
+    void should_sendEsRecarga0AndNoAccion_when_unload() {
+        var request = mapper.toRequest(
+                baseMovement().type(DispenserMovementType.UNLOAD).registeredByUsername("gwinazki").build());
+
+        assertThat(request.getEsRecarga()).isEqualTo(0);
+        assertThat(request.getAccion()).isNull();
     }
 
     @Test

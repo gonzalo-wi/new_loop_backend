@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.integrations.aguas.mapper;
 
 import com.loop.new_loop_api.dispensers.entity.DispenserMovement;
+import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.integrations.aguas.dto.AguasEquipmentMovementRequest;
 import org.springframework.stereotype.Component;
 
@@ -9,10 +10,14 @@ import java.util.ArrayList;
 @Component
 public class AguasEquipmentMapper {
 
-    // La salida/vuelta de camión de dispensers nunca es una recarga; Aguas exige el flag igual.
-    private static final boolean ES_RECARGA = false;
+    // Salida al reparto (LOAD): Aguas exige esrecarga=1 y accion=3.
+    private static final int LOAD_ES_RECARGA = 1;
+    private static final int LOAD_ACCION     = 3;
+    // Vuelta a planta (UNLOAD): no es recarga y no lleva accion.
+    private static final int UNLOAD_ES_RECARGA = 0;
 
     public AguasEquipmentMovementRequest toRequest(DispenserMovement movement) {
+        var isLoad = movement.getType() == DispenserMovementType.LOAD;
         return AguasEquipmentMovementRequest.builder()
                 .fecha(movement.getMovementDate().toString())
                 .idReparto(parseInteger(movement.getRouteCode()))
@@ -21,7 +26,8 @@ public class AguasEquipmentMapper {
                 .equipos(new ArrayList<>(movement.serialsToSend()))
                 .idUbicacionDestino(movement.getLocationId())
                 .idEstadoDestino(movement.getStateId())
-                .esRecarga(ES_RECARGA)
+                .esRecarga(isLoad ? LOAD_ES_RECARGA : UNLOAD_ES_RECARGA)
+                .accion(isLoad ? LOAD_ACCION : null)
                 .build();
     }
 
