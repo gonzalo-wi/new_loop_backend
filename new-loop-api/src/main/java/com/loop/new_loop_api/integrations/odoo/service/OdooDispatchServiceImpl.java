@@ -26,9 +26,13 @@ import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 @Service
@@ -41,6 +45,7 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
     private static final String ENTITY_NAME = "DispenserMovement";
     private static final String STATUS_SENT  = "SENT";
     private static final String STATUS_ERROR = "ERROR";
+    private static final String REASON_NONE_AVAILABLE = "NINGUN_EQUIPO_DISPONIBLE";
 
     private static final String PATH_CREATE      = "/api/v1/salida/create";
     private static final String PATH_VALIDATE     = "/api/v1/salida/validar";
@@ -127,13 +132,47 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
         var referenciaExterna = odooDispatchMapper.buildExternalReference(movement);
         movement.setOdooReference(referenciaExterna);
 
-        var request        = odooDispatchMapper.toCreateRequest(movement, referenciaExterna);
-        var requestPayload = serialize(request);
-        integrationLog.setRequestPayload(requestPayload);
-        log.info("Odoo {} request for movement {}: {}", OPERATION, movement.getId(), requestPayload);
+        var equipos = new ArrayList<>(movement.serialsToSend());
+        var outcome = dispatch(movement, equipos, referenciaExterna);
+        integrationLog.setRequestPayload(outcome.requestPayload());
 
+        if (outcome.success()) {
+            markSent(integrationLog, movement, outcome.body(), outcome.result());
+            return;
+        }
+
+        // "Todo o nada": Odoo rechaza el lote entero si algún equipo no está en expedición y devuelve
+        // las series ofensivas en "detalle". Reintentamos una vez con solo las disponibles para que un
+        // equipo mal ubicado no bloquee al resto. Aguas ya recibió la lista completa; solo se filtra Odoo.
+        var unavailable = extractUnavailableSeries(outcome.result());
+        if (!unavailable.isEmpty()) {
+            var available = equipos.stream().filter(equipo -> !unavailable.contains(equipo)).toList();
+            if (available.isEmpty()) {
+                closeNoneAvailable(integrationLog, movement, outcome);
+                return;
+            }
+            if (available.size() < equipos.size()) {
+                var retry = dispatch(movement, new ArrayList<>(available), referenciaExterna);
+                integrationLog.setRequestPayload(retry.requestPayload());
+                if (retry.success()) {
+                    log.info("Odoo dispatch retried for movement {} excluding unavailable equipos {}",
+                            movement.getId(), unavailable);
+                    markSent(integrationLog, movement, retry.body(), retry.result());
+                } else {
+                    markError(integrationLog, movement, describe(retry));
+                }
+                return;
+            }
+        }
+        markError(integrationLog, movement, describe(outcome));
+    }
+
+    private DispatchOutcome dispatch(DispenserMovement movement, List<String> equipos, String referenciaExterna) {
+        var request        = odooDispatchMapper.toCreateRequest(movement, equipos, referenciaExterna);
+        var requestPayload = serialize(request);
+        log.info("Odoo {} request for movement {}: {}", OPERATION, movement.getId(), requestPayload);
         try {
-            var http   = restClient.post()
+            var http = restClient.post()
                     .uri(baseUrl + PATH_CREATE)
                     .header("X-API-Key", apiKey)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -142,18 +181,36 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
                             res.getStatusCode().value(),
                             new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8)));
 
-            var result = extractResult(http.status(), http.body());
-            if (result != null && result.path("success").asBoolean(false)) {
-                markSent(integrationLog, movement, http.body(), result);
-            } else {
-                markError(integrationLog, movement, extractError(http.status(), http.body(), result));
-            }
+            var result  = extractResult(http.status(), http.body());
+            var success = result != null && result.path("success").asBoolean(false);
+            return new DispatchOutcome(http.status(), http.body(), result, success, null, requestPayload);
         } catch (Exception e) {
-            markError(integrationLog, movement, e.getClass().getSimpleName() + ": " + e.getMessage());
+            return new DispatchOutcome(0, null, null, false,
+                    e.getClass().getSimpleName() + ": " + e.getMessage(), requestPayload);
         }
     }
 
+    /** Series that Odoo flags as unavailable in the "detalle" array of a rejected batch. */
+    private Set<String> extractUnavailableSeries(JsonNode result) {
+        if (result == null) return Set.of();
+        var detalle = result.get("detalle");
+        if (detalle == null || !detalle.isArray()) return Set.of();
+        return StreamSupport.stream(detalle.spliterator(), false)
+                .map(item -> item.path("serie").asText(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+    }
+
+    private String describe(DispatchOutcome outcome) {
+        return outcome.exception() != null
+                ? outcome.exception()
+                : extractError(outcome.status(), outcome.body(), outcome.result());
+    }
+
     private record OdooHttpResult(int status, String body) {}
+
+    private record DispatchOutcome(int status, String body, JsonNode result, boolean success,
+                                   String exception, String requestPayload) {}
 
     private void markSent(IntegrationLog integrationLog, DispenserMovement movement, String body, JsonNode result) {
         integrationLog.setStatus(IntegrationStatus.SENT);
@@ -184,6 +241,25 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
         persist(integrationLog, movement);
         auditService.register("ODOO_ERROR", ENTITY_NAME, movement.getId(), null, Map.of("error", errorMessage));
         log.error("Odoo {} failed for movement {}: {}", OPERATION, movement.getId(), errorMessage);
+        integrationCallMetrics.recordError(IntegrationName.ODOO);
+    }
+
+    /**
+     * None of the equipos is available in Odoo, so retrying can't succeed: the log is closed as
+     * CANCELLED (terminal) to keep the retry scheduler from looping on it, and the movement is left
+     * in Odoo error with the offending series for the operator to resolve.
+     */
+    private void closeNoneAvailable(IntegrationLog integrationLog, DispenserMovement movement, DispatchOutcome outcome) {
+        var errorMessage = describe(outcome);
+        integrationLog.setStatus(IntegrationStatus.CANCELLED);
+        integrationLog.setErrorMessage(errorMessage);
+
+        movement.setOdooStatus(STATUS_ERROR);
+        persist(integrationLog, movement);
+        auditService.register("ODOO_ERROR", ENTITY_NAME, movement.getId(), null,
+                Map.of("error", errorMessage, "reason", REASON_NONE_AVAILABLE));
+        log.error("Odoo {} closed for movement {}: no hay equipos disponibles en expedición. {}",
+                OPERATION, movement.getId(), errorMessage);
         integrationCallMetrics.recordError(IntegrationName.ODOO);
     }
 

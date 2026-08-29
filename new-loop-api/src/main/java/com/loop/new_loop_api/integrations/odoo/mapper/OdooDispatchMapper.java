@@ -20,10 +20,16 @@ public class OdooDispatchMapper {
     private static final int    UUID_SUFFIX_LENGTH         = 8;
 
     public OdooDispatchCreateRequest toCreateRequest(DispenserMovement movement, String referenciaExterna) {
+        return toCreateRequest(movement, movement.serialsToSend(), referenciaExterna);
+    }
+
+    /** Overload for a specific equipos subset (used to re-dispatch only the ones Odoo has available). */
+    public OdooDispatchCreateRequest toCreateRequest(DispenserMovement movement, List<String> equipos,
+                                                     String referenciaExterna) {
         var params = OdooDispatchCreateParams.builder()
                 .fecha(movement.getMovementDate().toString().replace("-", ""))
                 .idreparto(movement.getRouteCode())
-                .equipos(new ArrayList<>(movement.serialsToSend()))
+                .equipos(new ArrayList<>(equipos))
                 .referenciaExterna(referenciaExterna)
                 .build();
 

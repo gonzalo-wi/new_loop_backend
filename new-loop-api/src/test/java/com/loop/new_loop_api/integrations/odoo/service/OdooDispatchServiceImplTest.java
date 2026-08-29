@@ -168,7 +168,7 @@ class OdooDispatchServiceImplTest {
     // ---------- send() error paths ----------
 
     @Test
-    void should_markErrorWithSeriesDetail_when_odooRejectsAllOrNothing() {
+    void should_closeAsCancelledWithDetail_when_noneOfTheEquiposAreAvailable() {
         when(dispenserMovementRepository.findById(movementId)).thenReturn(Optional.of(movement));
         when(integrationLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -188,7 +188,8 @@ class OdooDispatchServiceImplTest {
         var logCaptor = ArgumentCaptor.forClass(IntegrationLog.class);
         verify(integrationLogRepository).save(logCaptor.capture());
         var errorMessage = logCaptor.getValue().getErrorMessage();
-        assertThat(logCaptor.getValue().getStatus()).isEqualTo(IntegrationStatus.ERROR);
+        // Ningún equipo disponible: se cierra terminal (CANCELLED) para que el scheduler no reintente.
+        assertThat(logCaptor.getValue().getStatus()).isEqualTo(IntegrationStatus.CANCELLED);
         assertThat(errorMessage)
                 .contains("Hay equipos no disponibles")
                 .contains("SN-1 (no en expedicion)")
@@ -196,6 +197,42 @@ class OdooDispatchServiceImplTest {
 
         verify(integrationCallMetrics).recordError(IntegrationName.ODOO);
         verify(integrationCallMetrics, never()).recordSuccess(any());
+    }
+
+    @Test
+    void should_retryWithAvailableEquipos_when_odooRejectsOnlySome() {
+        when(dispenserMovementRepository.findById(movementId)).thenReturn(Optional.of(movement));
+        when(integrationLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Primera llamada: Odoo rechaza el lote porque SN-1 no está disponible.
+        server.expect(requestTo(CREATE_URL))
+                .andRespond(withSuccess(
+                        "{\"result\":{\"success\":false,\"error\":\"Hay equipos no disponibles\","
+                                + "\"detalle\":[{\"serie\":\"SN-1\",\"motivo\":\"no en expedicion\"}]}}",
+                        MediaType.APPLICATION_JSON));
+        // Segunda llamada: se reintenta solo con SN-2 y Odoo lo acepta.
+        server.expect(requestTo(CREATE_URL))
+                .andRespond(withSuccess(
+                        "{\"result\":{\"success\":true,\"picking_id\":7,\"picking_name\":\"WH/OUT/0007\"}}",
+                        MediaType.APPLICATION_JSON));
+
+        service.send(movementId);
+        server.verify();
+
+        assertThat(movement.getOdooStatus()).isEqualTo("SENT");
+        assertThat(movement.getOdooPickingId()).isEqualTo(7);
+
+        var logCaptor = ArgumentCaptor.forClass(IntegrationLog.class);
+        verify(integrationLogRepository).save(logCaptor.capture());
+        assertThat(logCaptor.getValue().getStatus()).isEqualTo(IntegrationStatus.SENT);
+        // El request final guardado es el reintento: solo SN-2, sin SN-1.
+        assertThat(logCaptor.getValue().getRequestPayload())
+                .contains("SN-2")
+                .doesNotContain("SN-1");
+
+        verify(integrationCallMetrics).recordSuccess(IntegrationName.ODOO);
+        verify(integrationCallMetrics, never()).recordError(any());
     }
 
     @Test
