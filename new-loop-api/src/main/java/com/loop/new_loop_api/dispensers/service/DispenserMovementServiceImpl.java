@@ -18,6 +18,7 @@ import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementService;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
+import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +50,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     private final AuditService                auditService;
     private final ApplicationEventPublisher   eventPublisher;
     private final AguasEquipmentService       aguasEquipmentService;
+    private final OdooDispatchService         odooDispatchService;
     private final UnregisteredDispenserService unregisteredDispenserService;
     private final DispenserMovementMetrics    dispenserMovementMetrics;
 
@@ -59,6 +61,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         validateNoDuplicate(request, date);
         var movement = buildMovement(request, date);
         excludeUnregisteredSerials(movement);
+        excludeUnavailableInOdoo(movement);
         var saved    = dispenserMovementRepository.save(movement);
         var response = dispenserMovementMapper.toResponse(saved);
         auditService.register("CREATE_DISPENSER_MOVEMENT", "DispenserMovement", saved.getId(), null, response);
@@ -165,6 +168,35 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         if (movement.serialsToSend().isEmpty()) {
             movement.setStatus(DispenserMovementStatus.SKIPPED_UNREGISTERED);
             log.warn("Movement on route {} not sent to Aguas: every scanned serial is unregistered in jMobile",
+                    movement.getRouteCode());
+        }
+    }
+
+    /**
+     * On LOAD, serials that Odoo reports as not available in expedición (unknown serial, wrong location or
+     * no stock) are kept on the movement but never forwarded to Aguas/Odoo. If none is left the movement is
+     * closed as SKIPPED_UNREGISTERED so the caller already gets the final outcome in the create response.
+     * A validation failure excludes nothing, so Odoo being unreachable never blocks a load.
+     */
+    private void excludeUnavailableInOdoo(DispenserMovement movement) {
+        if (movement.getType() != DispenserMovementType.LOAD) return;
+
+        var unavailable = odooDispatchService.findUnavailableEquipos(movement.getSerials());
+        if (unavailable.isEmpty()) return;
+
+        var excluded = movement.getSerials().stream()
+                .filter(unavailable::contains)
+                .toList();
+        if (excluded.isEmpty()) return;
+
+        movement.getExcludedSerials().addAll(excluded);
+        log.warn("Movement on route {}: {} of {} serial(s) excluded as unavailable in Odoo: {}",
+                movement.getRouteCode(), excluded.size(), movement.getSerials().size(), excluded);
+        dispenserMovementMetrics.recordUnavailableInOdooExcluded(excluded.size());
+
+        if (movement.serialsToSend().isEmpty()) {
+            movement.setStatus(DispenserMovementStatus.SKIPPED_UNREGISTERED);
+            log.warn("Movement on route {} not sent to Aguas: every scanned serial is unavailable in Odoo",
                     movement.getRouteCode());
         }
     }

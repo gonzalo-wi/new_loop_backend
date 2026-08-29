@@ -349,4 +349,52 @@ class OdooDispatchServiceImplTest {
 
         assertThat(result).isNull();
     }
+
+    // ---------- findUnavailableEquipos() ----------
+
+    @Test
+    void should_returnOnlyUnavailableSeries_when_findUnavailableEquipos() {
+        server.expect(requestTo(VALIDATE_URL))
+                .andExpect(method(POST))
+                .andRespond(withSuccess(
+                        "{\"result\":{\"equipos\":["
+                                + "{\"serie\":\"SN-1\",\"disponible\":true},"
+                                + "{\"serie\":\"SN-2\",\"disponible\":false,\"motivo\":\"no existe en Odoo\"}]}}",
+                        MediaType.APPLICATION_JSON));
+
+        var unavailable = service.findUnavailableEquipos(List.of("SN-1", "SN-2"));
+        server.verify();
+
+        assertThat(unavailable).containsExactly("SN-2");
+    }
+
+    @Test
+    void should_returnEmpty_when_allEquiposAvailable() {
+        server.expect(requestTo(VALIDATE_URL))
+                .andRespond(withSuccess(
+                        "{\"result\":{\"equipos\":[{\"serie\":\"SN-1\",\"disponible\":true}]}}",
+                        MediaType.APPLICATION_JSON));
+
+        var unavailable = service.findUnavailableEquipos(List.of("SN-1"));
+        server.verify();
+
+        assertThat(unavailable).isEmpty();
+    }
+
+    @Test
+    void should_returnEmptyWithoutCallingOdoo_when_equiposListIsEmpty() {
+        var unavailable = service.findUnavailableEquipos(List.of());
+
+        assertThat(unavailable).isEmpty();
+    }
+
+    @Test
+    void should_returnEmpty_when_validationFailsSoLoadIsNotBlocked() {
+        server.expect(requestTo(VALIDATE_URL)).andRespond(withServerError());
+
+        var unavailable = service.findUnavailableEquipos(List.of("SN-1"));
+        server.verify();
+
+        assertThat(unavailable).isEmpty();
+    }
 }

@@ -27,6 +27,7 @@ import org.springframework.web.client.RestClient;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -115,6 +116,33 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
     public Object validateEquipment(List<String> equipos) {
         var request = odooDispatchMapper.toValidateRequest(equipos);
         return readCatalog(PATH_VALIDATE, request);
+    }
+
+    @Override
+    public Set<String> findUnavailableEquipos(List<String> equipos) {
+        if (equipos == null || equipos.isEmpty()) return Set.of();
+        var request = odooDispatchMapper.toValidateRequest(equipos);
+        var result  = (JsonNode) readCatalog(PATH_VALIDATE, request);
+        return parseUnavailable(result);
+    }
+
+    /**
+     * Reads Odoo's /validar response and returns the series flagged as not available. Odoo may return the
+     * list either as a bare array or wrapped in {@code {"equipos": [...]}}; both are handled. A serial with
+     * no explicit {@code disponible} flag is treated as available so we never exclude on ambiguous data.
+     */
+    private Set<String> parseUnavailable(JsonNode result) {
+        if (result == null) return Set.of();
+        var array = result.isArray() ? result : result.get("equipos");
+        if (array == null || !array.isArray()) return Set.of();
+        var unavailable = new HashSet<String>();
+        for (var item : array) {
+            if (!item.path("disponible").asBoolean(true)) {
+                var serie = item.path("serie").asText(null);
+                if (serie != null) unavailable.add(serie);
+            }
+        }
+        return unavailable;
     }
 
     private IntegrationLog newLog(DispenserMovement movement) {

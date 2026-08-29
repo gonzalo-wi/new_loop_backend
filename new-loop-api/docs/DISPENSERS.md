@@ -404,11 +404,12 @@ Adentro de `data` viene la respuesta de Odoo, con un ítem por cada serie (`disp
 
 > El backend devuelve el `result` de Odoo sin transformarlo, así que la estructura exacta (por ejemplo si la lista viene como `equipos` o directamente como array) es la que responda Odoo. **La app debe leer, por cada serie, `disponible` y — si es `false` — `motivo`.** Motivos posibles: `"El numero de serie no existe en Odoo"`, `"El equipo esta en <ubicacion>, no en expedicion"`, `"El equipo no tiene stock disponible"`.
 
-### C. "Todo o nada" al confirmar la carga
+### C. Validación automática y confirmación de la carga
 
 La confirmación de la carga en Odoo la hace el backend solo (no hay que llamar a ningún endpoint extra: se dispara tras el `POST /dispenser-movements` de tipo `LOAD`, una vez que Aguas acepta). Reglas a tener en cuenta para mostrar el resultado al operario:
 
-- **Es todo o nada:** si **una sola** serie de la carga no está disponible en Odoo, **no se registra nada** en Odoo y el movimiento queda con `odooStatus: ERROR`. El detalle de qué series fallaron y por qué queda en el log de integración (`GET /integration-logs?entityId={movementId}`, campo `errorMessage`). Aguas, en cambio, **sí** registró la carga (por eso conviene validar con el endpoint B **antes** de confirmar).
+- **Validación automática al crear:** al registrar la carga, el backend valida las series contra Odoo (endpoint B) **antes** de enviarlas. Las series que Odoo reporta como no disponibles (no existen, están en otra ubicación o sin stock) se **excluyen** del movimiento: no se mandan ni a Aguas ni a Odoo, y quedan registradas en `excludedSerials`. La carga sigue adelante con las series válidas. Si **ninguna** serie está disponible, el movimiento se cierra como `SKIPPED_UNREGISTERED` y no se envía a Aguas. (Si Odoo no responde a la validación, no se excluye nada y se sigue el flujo normal.)
+- **Red de seguridad en el despacho:** si por una condición de carrera Odoo igual rechaza alguna serie al confirmar, el backend reintenta una vez con solo las disponibles; si ninguna lo está, el despacho queda con `odooStatus: ERROR`. El detalle de qué series fallaron y por qué queda en el log de integración (`GET /integration-logs?entityId={movementId}`, campo `errorMessage`).
 - **Idempotencia:** el backend genera una referencia única por carga (`odooReference`). Si hay un reintento (corte de red), Odoo reconoce esa referencia y **no duplica** el movimiento de stock; devuelve el mismo comprobante. La app no tiene que hacer nada para esto.
 - **Comprobante:** cuando `odooStatus: SENT`, el campo `odooPickingName` es el **comprobante** de la carga en Odoo (guardarlo/mostrarlo; sirve para reclamar si algo no cierra después).
 

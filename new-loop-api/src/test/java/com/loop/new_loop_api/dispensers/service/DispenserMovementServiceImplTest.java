@@ -12,6 +12,7 @@ import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
+import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +42,7 @@ class DispenserMovementServiceImplTest {
     @Mock private AuditService                  auditService;
     @Mock private ApplicationEventPublisher     eventPublisher;
     @Mock private AguasEquipmentService         aguasEquipmentService;
+    @Mock private OdooDispatchService           odooDispatchService;
     @Mock private UnregisteredDispenserService  unregisteredDispenserService;
     @Mock private DispenserMovementMetrics      dispenserMovementMetrics;
 
@@ -50,7 +52,17 @@ class DispenserMovementServiceImplTest {
     void setUp() {
         dispenserMovementService = new DispenserMovementServiceImpl(
                 dispenserMovementRepository, dispenserMovementMapper, currentUserProvider, auditService,
-                eventPublisher, aguasEquipmentService, unregisteredDispenserService, dispenserMovementMetrics);
+                eventPublisher, aguasEquipmentService, odooDispatchService, unregisteredDispenserService,
+                dispenserMovementMetrics);
+    }
+
+    private CreateDispenserMovementRequest loadRequest(List<String> serials) {
+        var request = new CreateDispenserMovementRequest();
+        request.setType(DispenserMovementType.LOAD);
+        request.setRouteCode("1");
+        request.setTechnician("Tech 1");
+        request.setSerials(serials);
+        return request;
     }
 
     private CreateDispenserMovementRequest unloadRequest(List<String> serials) {
@@ -142,8 +154,7 @@ class DispenserMovementServiceImplTest {
 
     @Test
     void should_notCheckUnregisteredSerials_when_movementTypeIsLoad() {
-        var request = unloadRequest(List.of("SN-1"));
-        request.setType(DispenserMovementType.LOAD);
+        var request = loadRequest(List.of("SN-1"));
         var movement = DispenserMovement.builder()
                 .type(DispenserMovementType.LOAD)
                 .routeCode("1")
@@ -154,6 +165,7 @@ class DispenserMovementServiceImplTest {
                 any(), any(), any(), any())).thenReturn(false);
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of());
         when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
@@ -161,5 +173,55 @@ class DispenserMovementServiceImplTest {
 
         verify(unregisteredDispenserService, never()).findUnregisteredSerials(any());
         verify(dispenserMovementMetrics, never()).recordUnregisteredSerialsExcluded(anyInt());
+    }
+
+    @Test
+    void should_excludeUnavailableInOdooAndStillPublish_when_someLoadSerialsAreNotInOdoo() {
+        var request = loadRequest(List.of("SN-1", "SN-2", "SN-3"));
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.LOAD)
+                .routeCode("1")
+                .serials(new java.util.ArrayList<>(List.of("SN-1", "SN-2", "SN-3")))
+                .build();
+
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(false);
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-2"));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(request);
+
+        assertThat(movement.getExcludedSerials()).containsExactly("SN-2");
+        assertThat(movement.serialsToSend()).containsExactly("SN-1", "SN-3");
+        assertThat(movement.getStatus()).isNotEqualTo(DispenserMovementStatus.SKIPPED_UNREGISTERED);
+        verify(dispenserMovementMetrics).recordUnavailableInOdooExcluded(1);
+        verify(eventPublisher).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void should_skipMovementAndNotPublish_when_everyLoadSerialIsUnavailableInOdoo() {
+        var request = loadRequest(List.of("SN-1"));
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.LOAD)
+                .routeCode("1")
+                .serials(new java.util.ArrayList<>(List.of("SN-1")))
+                .build();
+
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(false);
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-1"));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(request);
+
+        assertThat(movement.getStatus()).isEqualTo(DispenserMovementStatus.SKIPPED_UNREGISTERED);
+        verify(dispenserMovementMetrics).recordUnavailableInOdooExcluded(1);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }

@@ -18,6 +18,7 @@ public class DispenserMovementMetrics {
     private static final String SENT_COUNTER          = "loop_dispenser_movement_aguas_enviado_total";
     private static final String REJECTED_COUNTER       = "loop_dispenser_movement_aguas_rechazado_total";
     private static final String UNREGISTERED_COUNTER   = "loop_dispenser_no_registrado_total";
+    private static final String UNAVAILABLE_ODOO_COUNTER = "loop_dispenser_no_disponible_odoo_total";
 
     private final MeterRegistry meterRegistry;
 
@@ -41,6 +42,14 @@ public class DispenserMovementMetrics {
         if (count <= 0) return;
         Counter.builder(UNREGISTERED_COUNTER)
                 .description("Total dispenser serials excluded from Aguas/Odoo as unregistered in jMobile")
+                .register(meterRegistry)
+                .increment(count);
+    }
+
+    public void recordUnavailableInOdooExcluded(int count) {
+        if (count <= 0) return;
+        Counter.builder(UNAVAILABLE_ODOO_COUNTER)
+                .description("Total dispenser serials excluded from Aguas/Odoo as unavailable in Odoo at load time")
                 .register(meterRegistry)
                 .increment(count);
     }
