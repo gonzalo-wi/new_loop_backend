@@ -5,7 +5,9 @@ import com.loop.new_loop_api.integrations.aguas.service.iService.AguasIntegratio
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
+import com.loop.new_loop_api.integrations.odoo.service.OdooNoNormalizadoServiceImpl;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
+import com.loop.new_loop_api.integrations.odoo.service.iService.OdooNoNormalizadoService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooRepairService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -28,15 +30,19 @@ public class IntegrationRetryDispatcher {
     private final AguasEquipmentService    aguasEquipmentService;     // Aguas / DispenserMovement
     private final OdooRepairService        odooRepairService;         // Odoo  / DispenserMovement (UNLOAD -> repair intake)
     private final OdooDispatchService      odooDispatchService;       // Odoo  / DispenserMovement (LOAD -> dispatch/salida)
+    private final OdooNoNormalizadoService odooNoNormalizadoService;  // Odoo  / DispenserMovement (UNLOAD unregistered -> no normalizados)
 
     public void retry(UUID logId) {
         var integrationLog = integrationLogRepository.findById(logId)
                 .orElseThrow(() -> new IntegrationLogNotFoundException(logId));
 
         if (integrationLog.getIntegrationName() == IntegrationName.ODOO) {
-            // Two independent Odoo flows share DispenserMovement: route by operationType.
-            if (OPERATION_REPAIR_CREATE.equals(integrationLog.getOperationType())) {
+            // Several independent Odoo flows share DispenserMovement: route by operationType.
+            var operation = integrationLog.getOperationType();
+            if (OPERATION_REPAIR_CREATE.equals(operation)) {
                 odooRepairService.retry(logId);
+            } else if (OdooNoNormalizadoServiceImpl.OPERATION.equals(operation)) {
+                odooNoNormalizadoService.retry(logId);
             } else {
                 odooDispatchService.retry(logId);
             }

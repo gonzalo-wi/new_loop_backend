@@ -7,6 +7,8 @@ import com.loop.new_loop_api.dispensers.dto.DispenserMovementResponse;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovement;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
+import com.loop.new_loop_api.dispensers.event.DispenserMovementReadyForAguasEvent;
+import com.loop.new_loop_api.dispensers.event.DispenserMovementUnregisteredSerialsExcludedEvent;
 import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
@@ -101,7 +103,7 @@ class DispenserMovementServiceImplTest {
         assertThat(movement.getExcludedSerials()).containsExactly("SN-2");
         assertThat(movement.getStatus()).isNotEqualTo(DispenserMovementStatus.SKIPPED_UNREGISTERED);
         verify(dispenserMovementMetrics).recordUnregisteredSerialsExcluded(1);
-        verify(eventPublisher).publishEvent(any(Object.class));
+        verify(eventPublisher).publishEvent(any(DispenserMovementReadyForAguasEvent.class));
     }
 
     @Test
@@ -126,7 +128,55 @@ class DispenserMovementServiceImplTest {
 
         assertThat(movement.getStatus()).isEqualTo(DispenserMovementStatus.SKIPPED_UNREGISTERED);
         verify(dispenserMovementMetrics).recordUnregisteredSerialsExcluded(1);
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(eventPublisher, never()).publishEvent(any(DispenserMovementReadyForAguasEvent.class));
+        verify(eventPublisher).publishEvent(any(DispenserMovementUnregisteredSerialsExcludedEvent.class));
+    }
+
+    @Test
+    void should_publishBothEvents_when_unloadHasSomeUnregisteredSerials() {
+        var request = unloadRequest(List.of("SN-1", "SN-2"));
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.UNLOAD)
+                .routeCode("1")
+                .serials(new java.util.ArrayList<>(List.of("SN-1", "SN-2")))
+                .build();
+
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(false);
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(unregisteredDispenserService.findUnregisteredSerials(any())).thenReturn(Set.of("SN-2"));
+        when(unregisteredDispenserService.normalize("SN-1")).thenReturn("SN-1");
+        when(unregisteredDispenserService.normalize("SN-2")).thenReturn("SN-2");
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(request);
+
+        verify(eventPublisher).publishEvent(any(DispenserMovementReadyForAguasEvent.class));
+        verify(eventPublisher).publishEvent(any(DispenserMovementUnregisteredSerialsExcludedEvent.class));
+    }
+
+    @Test
+    void should_notPublishNoNormalizadosEvent_when_loadHasSerialsUnavailableInOdoo() {
+        var request = loadRequest(List.of("SN-1", "SN-2"));
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.LOAD)
+                .routeCode("1")
+                .serials(new java.util.ArrayList<>(List.of("SN-1", "SN-2")))
+                .build();
+
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(false);
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-2"));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(request);
+
+        verify(eventPublisher, never()).publishEvent(any(DispenserMovementUnregisteredSerialsExcludedEvent.class));
     }
 
     @Test

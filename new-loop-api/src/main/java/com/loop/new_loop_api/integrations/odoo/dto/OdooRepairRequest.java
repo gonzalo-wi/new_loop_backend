@@ -3,7 +3,7 @@ package com.loop.new_loop_api.integrations.odoo.dto;
 import lombok.Builder;
 import lombok.Getter;
 
-/** Body JSON-RPC para Odoo POST /api/v1/repair/create. */
+/** Body JSON-RPC para Odoo POST /api/v1/repair/create y /api/v1/equipos/no-normalizados (mismo contrato). */
 @Getter
 @Builder
 public class OdooRepairRequest {

@@ -7,6 +7,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
+import com.loop.new_loop_api.integrations.odoo.service.iService.OdooNoNormalizadoService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooRepairService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +31,7 @@ class IntegrationRetryDispatcherTest {
     @Mock private AguasEquipmentService    aguasEquipmentService;
     @Mock private OdooRepairService        odooRepairService;
     @Mock private OdooDispatchService      odooDispatchService;
+    @Mock private OdooNoNormalizadoService odooNoNormalizadoService;
 
     @InjectMocks private IntegrationRetryDispatcher dispatcher;
 
@@ -62,7 +64,19 @@ class IntegrationRetryDispatcherTest {
         dispatcher.retry(logId);
 
         verify(odooDispatchService).retry(logId);
-        verifyNoInteractions(odooRepairService, aguasEquipmentService, aguasIntegrationService);
+        verifyNoInteractions(odooRepairService, odooNoNormalizadoService, aguasEquipmentService, aguasIntegrationService);
+    }
+
+    @Test
+    void should_routeToOdooNoNormalizado_when_odooLogIsNoNormalizadoCreate() {
+        var logId = UUID.randomUUID();
+        when(integrationLogRepository.findById(logId))
+                .thenReturn(Optional.of(logWith(IntegrationName.ODOO, "NO_NORMALIZADO_CREATE", "DispenserMovement")));
+
+        dispatcher.retry(logId);
+
+        verify(odooNoNormalizadoService).retry(logId);
+        verifyNoInteractions(odooRepairService, odooDispatchService, aguasEquipmentService, aguasIntegrationService);
     }
 
     @Test

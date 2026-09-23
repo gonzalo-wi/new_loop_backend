@@ -29,6 +29,9 @@ public class DispenserMovementResponse {
     private Integer                 odooPickingId;
     private String                  odooPickingName;
     private String                  odooReference;
+    private String                  odooNoNormalizadoStatus;
+    private Integer                 odooNoNormalizadoPickingId;
+    private String                  odooNoNormalizadoPickingName;
     private UUID                    registeredBy;
     private String                  registeredByUsername;
     private LocalDateTime           createdAt;

@@ -8,6 +8,7 @@ import com.loop.new_loop_api.dispensers.entity.DispenserMovement;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.event.DispenserMovementReadyForAguasEvent;
+import com.loop.new_loop_api.dispensers.event.DispenserMovementUnregisteredSerialsExcludedEvent;
 import com.loop.new_loop_api.dispensers.exception.AguasDeleteFailedException;
 import com.loop.new_loop_api.dispensers.exception.DispenserMovementAlreadyCancelledException;
 import com.loop.new_loop_api.dispensers.exception.DispenserMovementNotFoundException;
@@ -69,7 +70,14 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         if (saved.getStatus() != DispenserMovementStatus.SKIPPED_UNREGISTERED) {
             eventPublisher.publishEvent(new DispenserMovementReadyForAguasEvent(saved.getId()));
         }
+        publishNoNormalizadosIfAny(saved);
         return response;
+    }
+
+    /** UNLOAD serials excluded as unregistered still go to Odoo, to the "no normalizados" location. */
+    private void publishNoNormalizadosIfAny(DispenserMovement movement) {
+        if (movement.getType() != DispenserMovementType.UNLOAD || movement.getExcludedSerials().isEmpty()) return;
+        eventPublisher.publishEvent(new DispenserMovementUnregisteredSerialsExcludedEvent(movement.getId()));
     }
 
 
@@ -152,8 +160,9 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
 
     /**
      * On UNLOAD, serials that jMobile reports as "dispenser no registrado" for the movement date are
-     * kept on the movement but never forwarded to Aguas/Odoo. If none is left the movement is closed
-     * as SKIPPED_UNREGISTERED, so the caller already gets the final outcome in the create response.
+     * kept on the movement but never forwarded to Aguas nor to Odoo repair (they go to Odoo's
+     * "no normalizados" intake instead). If none is left the movement is closed as
+     * SKIPPED_UNREGISTERED, so the caller already gets the final outcome in the create response.
      */
     private void excludeUnregisteredSerials(DispenserMovement movement) {
         if (movement.getType() != DispenserMovementType.UNLOAD) return;

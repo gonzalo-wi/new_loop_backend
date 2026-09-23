@@ -5,7 +5,7 @@ import lombok.Getter;
 
 import java.util.List;
 
-/** params del payload JSON-RPC de Odoo /repair/create. */
+/** params del payload JSON-RPC de Odoo /repair/create y /equipos/no-normalizados. */
 @Getter
 @Builder
 public class OdooRepairParams {

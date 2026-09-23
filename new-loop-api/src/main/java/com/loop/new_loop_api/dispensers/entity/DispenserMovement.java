@@ -81,6 +81,17 @@ public class DispenserMovement {
     @Column(name = "odoo_reference", length = 100)
     private String odooReference;
 
+    // Odoo "equipos no normalizados" intake (UNLOAD only): the excluded (unregistered) serials go to a
+    // dedicated Odoo location instead of repair, so they are tracked apart from the repair picking above.
+    @Column(name = "odoo_no_normalizado_status", length = 20)
+    private String odooNoNormalizadoStatus;
+
+    @Column(name = "odoo_no_normalizado_picking_id")
+    private Integer odooNoNormalizadoPickingId;
+
+    @Column(name = "odoo_no_normalizado_picking_name", length = 100)
+    private String odooNoNormalizadoPickingName;
+
     @Column(name = "registered_by")
     private UUID registeredBy;
 

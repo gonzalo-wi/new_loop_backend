@@ -20,7 +20,9 @@ Doc del módulo completo: [DISPENSERS.md](./DISPENSERS.md)
 
 ## Qué cambió y por qué
 
-Al registrar una **descarga** (`UNLOAD`), el backend ahora consulta un servicio externo (jMobile) que lista los dispensers marcados como **"no registrados"** para esa fecha. Los seriales escaneados que aparecen en esa lista **no se envían ni a Aguas ni a Odoo**: quedan guardados en el movimiento como excluidos, pero afuera del payload.
+Al registrar una **descarga** (`UNLOAD`), el backend ahora consulta un servicio externo (jMobile) que lista los dispensers marcados como **"no registrados"** (no normalizados: no existen en ningún cliente) para esa fecha. Los seriales escaneados que aparecen en esa lista **no se envían a Aguas ni entran a reparación en Odoo**: quedan guardados en el movimiento como excluidos.
+
+Esos excluidos **sí se envían a Odoo, pero a una ubicación específica de "equipos no normalizados"** (`POST /api/v1/equipos/no-normalizados`), sin pasar por taller ni generar orden de reparación. El envío se hace en segundo plano después de crear el movimiento, con reintentos automáticos. En la respuesta del movimiento se refleja en `odooNoNormalizadoStatus` (`SENT`/`ERROR`/`null` mientras está pendiente), `odooNoNormalizadoPickingId` y `odooNoNormalizadoPickingName`. Son campos aditivos: la app no está obligada a usarlos.
 
 Esto pasa **durante el `POST`**, antes de responder. O sea que la respuesta del create ya trae el resultado real: la app no necesita esperar ni refrescar para saber si un dispenser quedó afuera.
 
@@ -102,7 +104,7 @@ Comportamiento actual, sin cambios: se envía a Aguas en segundo plano y el esta
 }
 ```
 
-**Este es el caso que hoy queda colgado en "Enviando…" para siempre.** No hubo llamada a Aguas ni a Odoo, y no va a haber ninguna después: es un estado **final**, no transitorio. No tiene sentido reintentar ni esperar.
+**Este es el caso que hoy queda colgado en "Enviando…" para siempre.** No hubo llamada a Aguas ni a reparación en Odoo, y no va a haber ninguna después: es un estado **final**, no transitorio. No tiene sentido reintentar ni esperar. (Los seriales igual se mandan a la ubicación de no normalizados de Odoo en segundo plano; eso no cambia el `status`.)
 
 El movimiento igual queda guardado en LOOP para trazabilidad.
 
