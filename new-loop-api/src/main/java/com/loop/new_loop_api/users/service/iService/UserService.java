@@ -11,7 +11,7 @@ import java.util.UUID;
 public interface UserService {
 
     UserResponse createUser(CreateUserRequest request);
-    Page<UserResponse> getAllUsers(Pageable pageable);
+    Page<UserResponse> getAllUsers(String search, Pageable pageable);
     UserResponse getUserById(UUID id);
     UserResponse updateUser(UUID id, UpdateUserRequest request);
     void deactivateUser(UUID id);

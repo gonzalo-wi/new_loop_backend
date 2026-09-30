@@ -32,14 +32,15 @@ public class UserController {
     }
 
     @Parameters({
-            @Parameter(name = "page", description = "Page number (0-indexed)", example = "0"),
-            @Parameter(name = "size", description = "Page size",               example = "20"),
-            @Parameter(name = "sort", description = "Sort: field,direction",   example = "name,asc")
+            @Parameter(name = "search", description = "Case-insensitive filter on name/username", example = "rto 5"),
+            @Parameter(name = "page",   description = "Page number (0-indexed)",                   example = "0"),
+            @Parameter(name = "size",   description = "Page size",                                 example = "20")
     })
     @GetMapping
     public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(userService.getAllUsers(pageable)));
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.ok(userService.getAllUsers(search, pageable)));
     }
 
     @GetMapping("/{id}")

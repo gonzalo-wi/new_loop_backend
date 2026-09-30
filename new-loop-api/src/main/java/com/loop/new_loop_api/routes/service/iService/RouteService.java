@@ -11,7 +11,7 @@ import java.util.UUID;
 public interface RouteService {
 
     RouteResponse createRoute(CreateRouteRequest request);
-    Page<RouteResponse> getAllRoutes(Pageable pageable);
+    Page<RouteResponse> getAllRoutes(String search, Pageable pageable);
     RouteResponse getRouteById(UUID id);
     RouteResponse updateRoute(UUID id, UpdateRouteRequest request);
     void deactivateRoute(UUID id);

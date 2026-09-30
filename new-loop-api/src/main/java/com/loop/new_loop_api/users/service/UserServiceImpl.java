@@ -17,6 +17,7 @@ import com.loop.new_loop_api.users.repository.UserRepository;
 import com.loop.new_loop_api.users.service.iService.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -49,8 +50,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserResponse> getAllUsers(Pageable pageable) {
-        return userRepository.findAll(pageable)
+    public Page<UserResponse> getAllUsers(String search, Pageable pageable) {
+        var normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
+        // Natural ordering is defined inside the native query, so we drop the Pageable's own sort
+        // and keep only page/size for the LIMIT/OFFSET.
+        var pageRequest = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return userRepository.searchUsers(normalizedSearch, pageRequest)
                 .map(userMapper::toResponse);
     }
 

@@ -16,6 +16,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Observabilidad del backend: métricas de rendimiento, errores y eventos clave de negocio (controles enviados/rechazados/corregidos a Aguas, movimientos de dispenser, llamadas a integraciones externas) ahora se pueden monitorear en tiempo real desde Grafana, alimentado por Prometheus. El stack se levanta junto con la app vía `docker compose up`.
 
 ### Changed
+- Listados de usuarios (`GET /users`) y repartos (`GET /routes`): ahora se ordenan de forma natural, con los números como números y no como texto (Rto 1, Rto 2, Rto 3 … Rto 10 … Rto 100, en vez de Rto 1, Rto 10, Rto 12). Además aceptan un parámetro `search` que filtra sobre toda la base (no solo la página actual): en usuarios busca por nombre y username; en repartos por código, patente, sucursal y repartidor. Con esto el buscador encuentra un registro aunque esté en otra página. El parámetro `sort` de estos dos endpoints deja de tener efecto (el orden natural se aplica siempre).
 - La integración de ingreso a reparación (UNLOAD) de dispensers ahora apunta a la misma instancia de Odoo que la salida al reparto; ambas quedan unificadas en un único entorno.
 - Salida de dispensers a Odoo: si al despachar algunos equipos no están disponibles en expedición, ahora se despachan igual los que sí lo están (antes Odoo rechazaba el lote completo y no salía ninguno). Los equipos no disponibles quedan registrados en el detalle del error. Si ninguno está disponible, el despacho se cierra como error definitivo y deja de reintentarse.
 

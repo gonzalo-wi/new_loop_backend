@@ -12,7 +12,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,14 +42,15 @@ public class RouteController {
     }
 
     @Parameters({
-            @Parameter(name = "page", example = "0"),
-            @Parameter(name = "size", example = "20"),
-            @Parameter(name = "sort", example = "code,asc")
+            @Parameter(name = "search", description = "Case-insensitive filter on code/plate/branch/driver", example = "rto 5"),
+            @Parameter(name = "page",   example = "0"),
+            @Parameter(name = "size",   example = "20")
     })
     @GetMapping
     public ResponseEntity<ApiResponse<Page<RouteResponse>>> getAllRoutes(
-            @PageableDefault(size = 20, sort = "code", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(routeService.getAllRoutes(pageable), LIST_RETRIEVED_MESSAGE));
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.ok(routeService.getAllRoutes(search, pageable), LIST_RETRIEVED_MESSAGE));
     }
 
     @GetMapping("/{id}")

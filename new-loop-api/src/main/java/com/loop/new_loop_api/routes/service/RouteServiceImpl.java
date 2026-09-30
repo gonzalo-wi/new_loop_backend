@@ -21,6 +21,7 @@ import com.loop.new_loop_api.users.exception.UserNotFoundException;
 import com.loop.new_loop_api.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,8 +53,12 @@ public class RouteServiceImpl implements RouteService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<RouteResponse> getAllRoutes(Pageable pageable) {
-        return routeRepository.findAll(pageable).map(routeMapper::toResponse);
+    public Page<RouteResponse> getAllRoutes(String search, Pageable pageable) {
+        var normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
+        // Natural ordering is defined inside the native query, so we drop the Pageable's own sort
+        // and keep only page/size for the LIMIT/OFFSET.
+        var pageRequest = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return routeRepository.searchRoutes(normalizedSearch, pageRequest).map(routeMapper::toResponse);
     }
 
     @Override
