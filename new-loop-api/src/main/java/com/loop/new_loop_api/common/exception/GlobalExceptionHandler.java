@@ -3,6 +3,7 @@ package com.loop.new_loop_api.common.exception;
 import com.loop.new_loop_api.appupdate.exception.InvalidApkUploadException;
 import com.loop.new_loop_api.common.metrics.ErrorMetrics;
 import com.loop.new_loop_api.common.response.ApiError;
+import com.loop.new_loop_api.dispensers.exception.InvalidStatsRangeException;
 import com.loop.new_loop_api.fleet.exception.FleetProviderException;
 import com.loop.new_loop_api.users.exception.BranchRequiredForRoleException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -72,6 +73,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BranchRequiredForRoleException.class)
     public ResponseEntity<ApiError> handleBranchRequired(BranchRequiredForRoleException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), ex, request);
+    }
+
+    @ExceptionHandler(InvalidStatsRangeException.class)
+    public ResponseEntity<ApiError> handleInvalidStatsRange(InvalidStatsRangeException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), ex, request);
     }
 

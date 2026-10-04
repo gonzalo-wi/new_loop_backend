@@ -2,6 +2,7 @@ package com.loop.new_loop_api.dispensers.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -19,6 +20,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DispenserMovement {
+
+    private static final int COLLECTION_BATCH_SIZE = 100;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -49,6 +52,7 @@ public class DispenserMovement {
     private DispenserMovementStatus status = DispenserMovementStatus.REGISTERED;
 
     @ElementCollection
+    @BatchSize(size = COLLECTION_BATCH_SIZE)
     @CollectionTable(name = "dispenser_movement_serials", joinColumns = @JoinColumn(name = "movement_id"))
     @Column(name = "serial", length = 100)
     @Builder.Default
@@ -56,6 +60,7 @@ public class DispenserMovement {
 
     // Scanned serials flagged as "dispenser no registrado" in jMobile: kept for traceability but not sent out.
     @ElementCollection
+    @BatchSize(size = COLLECTION_BATCH_SIZE)
     @CollectionTable(name = "dispenser_movement_excluded_serials", joinColumns = @JoinColumn(name = "movement_id"))
     @Column(name = "serial", length = 100)
     @Builder.Default
