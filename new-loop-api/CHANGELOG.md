@@ -8,6 +8,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
 ### Added
+- Pendientes de integración (`GET /integration-logs/issues`): lista los controles de stock y movimientos de dispensers que no llegaron a Aguas u Odoo, clasificados en reintentos agotados (requieren acción manual), trabados, nunca enviados y reintentando, con reparto, fecha, intentos y último error. Una anulación fallida en Aguas se marca para rehacerla desde el movimiento. El reintento manual (`POST /integration-logs/{id}/retry`) ahora queda en la auditoría y responde 409 si no había nada para reintentar, en lugar de responder OK sin hacer nada.
 - Limpieza automática del registro de envíos a Aguas/Odoo: cada noche se borran los envíos exitosos o cancelados de más de 90 días (configurable con `INTEGRATION_LOG_RETENTION_DAYS`). Los que tienen error o están pendientes nunca se borran.
 - Tareas programadas (reintentos de integraciones con Aguas/Odoo y limpieza nocturna de auditoría): con más de una instancia del backend sobre la misma base, cada ejecución corre en una sola. Los reintentos esperan 2 minutos después del arranque, y se pueden apagar todas las tareas con `SCHEDULING_ENABLED=false` (útil para correr el backend local contra una base compartida).
 - Resumen de repartos (`GET /routes/summary`): devuelve en una sola consulta el total de repartos, cuántos están activos e inactivos y el desglose por sucursal, para que el dashboard no tenga que traer todos los repartos solo para contarlos.

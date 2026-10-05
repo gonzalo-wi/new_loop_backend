@@ -15,4 +15,10 @@ public interface IntegrationLogService {
                                         UUID entityId, LocalDateTime from, LocalDateTime to, Pageable pageable);
 
     IntegrationLogResponse getById(UUID id);
+
+    /**
+     * Retry requested by a person (not the scheduler): retried right away and recorded in the audit trail.
+     * Throws NothingToRetryException (409) when the handler had nothing to do.
+     */
+    IntegrationLogResponse retryManually(UUID id);
 }

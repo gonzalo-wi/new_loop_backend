@@ -1,10 +1,11 @@
 package com.loop.new_loop_api.integrations.common.controller;
 
 import com.loop.new_loop_api.common.response.ApiResponse;
+import com.loop.new_loop_api.integrations.common.dto.IntegrationIssuesResponse;
 import com.loop.new_loop_api.integrations.common.dto.IntegrationLogResponse;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
-import com.loop.new_loop_api.integrations.common.service.IntegrationRetryDispatcher;
+import com.loop.new_loop_api.integrations.common.service.iService.IntegrationIssueService;
 import com.loop.new_loop_api.integrations.common.service.iService.IntegrationLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,7 +25,7 @@ import java.util.UUID;
 public class IntegrationLogController {
 
     private final IntegrationLogService       integrationLogService;
-    private final IntegrationRetryDispatcher  integrationRetryDispatcher;
+    private final IntegrationIssueService     integrationIssueService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<IntegrationLogResponse>>> getAll(
@@ -38,6 +39,12 @@ public class IntegrationLogController {
         return ResponseEntity.ok(ApiResponse.ok(page, "Integration logs retrieved successfully"));
     }
 
+    /** Controls and dispenser movements that did not reach Aguas/Odoo, most urgent first. */
+    @GetMapping("/issues")
+    public ResponseEntity<ApiResponse<IntegrationIssuesResponse>> getIssues() {
+        return ResponseEntity.ok(ApiResponse.ok(integrationIssueService.getIssues(), "Integration issues retrieved successfully"));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<IntegrationLogResponse>> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(integrationLogService.getById(id)));
@@ -45,7 +52,6 @@ public class IntegrationLogController {
 
     @PostMapping("/{id}/retry")
     public ResponseEntity<ApiResponse<IntegrationLogResponse>> retry(@PathVariable UUID id) {
-        integrationRetryDispatcher.retry(id);
-        return ResponseEntity.ok(ApiResponse.ok(integrationLogService.getById(id), "Integration retried"));
+        return ResponseEntity.ok(ApiResponse.ok(integrationLogService.retryManually(id), "Integration retried"));
     }
 }
