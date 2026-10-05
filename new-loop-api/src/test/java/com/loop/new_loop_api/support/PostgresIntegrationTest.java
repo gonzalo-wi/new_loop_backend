@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
         "spring.datasource.username=${LOOP_TEST_DB_USERNAME:loop_test}",
         "spring.datasource.password=${LOOP_TEST_DB_PASSWORD:}",
         "spring.jpa.show-sql=false",
+        "app.scheduling.enabled=false",
         "integrations.aguas.base-url=http://127.0.0.1:9",
         "integrations.aguas-equipment.base-url=http://127.0.0.1:9",
         "integrations.jmobile.base-url=http://127.0.0.1:9",

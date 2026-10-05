@@ -4,6 +4,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.integrations.common.service.IntegrationRetryDispatcher;
 import lombok.RequiredArgsConstructor;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +24,10 @@ public class AguasRetryScheduler {
     private int maxRetries;
 
     /** Periodically re-sends failed integration attempts (Aguas + Odoo) that still have retries left. */
-    @Scheduled(fixedDelayString = "${integrations.aguas.retry-interval-ms}")
+    @Scheduled(initialDelayString = "${integrations.aguas.retry-initial-delay-ms}",
+               fixedDelayString   = "${integrations.aguas.retry-interval-ms}")
+    // lockAtMostFor covers a full pass of slow/timing-out retries; lockAtLeastFor absorbs clock skew between instances.
+    @SchedulerLock(name = "aguasRetryScheduler.retryFailed", lockAtMostFor = "PT30M", lockAtLeastFor = "PT30S")
     public void retryFailed() {
         var failed = integrationLogRepository.findByStatusAndRetryCountLessThan(
                 IntegrationStatus.ERROR, maxRetries);
