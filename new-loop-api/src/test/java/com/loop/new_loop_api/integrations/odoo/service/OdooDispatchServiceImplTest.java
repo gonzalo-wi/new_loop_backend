@@ -240,6 +240,22 @@ class OdooDispatchServiceImplTest {
     }
 
     @Test
+    void should_dropAnEarlierSkip_when_aLaterAttemptFails() {
+        // A previous attempt found nothing available; the manual retry now fails for another reason.
+        movement.getOdooSkippedSerials().addAll(List.of("SN-1", "SN-2"));
+        when(dispenserMovementRepository.findById(movementId)).thenReturn(Optional.of(movement));
+        when(integrationLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        server.expect(requestTo(CREATE_URL)).andRespond(withServerError());
+
+        service.send(movementId);
+
+        assertThat(movement.getOdooStatus()).isEqualTo("ERROR");
+        assertThat(movement.getOdooSkippedSerials()).isEmpty();
+    }
+
+    @Test
     void should_markError_when_odooReturnsHttp500() {
         when(dispenserMovementRepository.findById(movementId)).thenReturn(Optional.of(movement));
         when(integrationLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

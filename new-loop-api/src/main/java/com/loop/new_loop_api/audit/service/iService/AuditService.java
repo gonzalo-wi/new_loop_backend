@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.audit.service.iService;
 
 import com.loop.new_loop_api.audit.dto.AuditLogResponse;
+import com.loop.new_loop_api.audit.service.AuditSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -17,6 +18,6 @@ public interface AuditService {
 
     void registerFailedLogin(String attemptedUsername, String reason);
 
-    Page<AuditLogResponse> getAll(String entityName, String action, UUID entityId, UUID userId, String source,
+    Page<AuditLogResponse> getAll(String entityName, String action, UUID entityId, UUID userId, AuditSource source,
                                   LocalDateTime from, LocalDateTime to, Pageable pageable);
 }

@@ -87,7 +87,7 @@ public class AuditServiceImpl implements AuditService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<AuditLogResponse> getAll(String entityName, String action, UUID entityId, UUID userId, String source,
+    public Page<AuditLogResponse> getAll(String entityName, String action, UUID entityId, UUID userId, AuditSource source,
                                          LocalDateTime from, LocalDateTime to, Pageable pageable) {
         var spec = AuditLogSpecification.withFilters(entityName, action, entityId, userId, source, from, to);
         return auditLogRepository.findAll(spec, pageable)
@@ -108,11 +108,11 @@ public class AuditServiceImpl implements AuditService {
     private static AuditLog.AuditLogBuilder withOrigin(AuditLog.AuditLogBuilder builder) {
         var request = currentRequest();
         if (request == null) {
-            return builder.source(AuditSource.SYSTEM);
+            return builder.source(AuditSource.SYSTEM.name());
         }
         return builder
                 .source(AuditSource.resolve(request.getHeader(AuditSource.CLIENT_APP_HEADER),
-                        request.getHeader(HttpHeaders.USER_AGENT)))
+                        request.getHeader(HttpHeaders.USER_AGENT)).name())
                 .ipAddress(request.getRemoteAddr());
     }
 

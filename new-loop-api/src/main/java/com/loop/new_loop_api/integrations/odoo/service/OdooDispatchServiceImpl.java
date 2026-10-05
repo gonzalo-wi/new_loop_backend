@@ -158,13 +158,14 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
     private void attempt(DispenserMovement movement, IntegrationLog integrationLog) {
         var referenciaExterna = odooDispatchMapper.buildExternalReference(movement);
         movement.setOdooReference(referenciaExterna);
+        // Only the outcome of this attempt counts: a retry that errors out must not keep an older skip.
+        recordSkipped(movement, List.of());
 
         var equipos = new ArrayList<>(movement.serialsToSend());
         var outcome = dispatch(movement, equipos, referenciaExterna);
         integrationLog.setRequestPayload(outcome.requestPayload());
 
         if (outcome.success()) {
-            recordSkipped(movement, List.of());
             markSent(integrationLog, movement, outcome.body(), outcome.result());
             return;
         }

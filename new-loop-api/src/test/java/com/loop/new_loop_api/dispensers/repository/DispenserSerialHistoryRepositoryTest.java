@@ -46,4 +46,13 @@ class DispenserSerialHistoryRepositoryTest extends PostgresIntegrationTest {
 
         assertThat(found).extracting(DispenserMovement::getId).containsExactly(unload.getId(), load.getId());
     }
+
+    @Test
+    void shouldReturnAMovementOnce_when_theSerialWasScannedTwiceInIt() {
+        var load = save(DispenserMovementType.LOAD, LocalDate.of(2026, 9, 1), List.of(serial, serial.toLowerCase()));
+
+        var found = repository.findBySerial(serial, PageRequest.of(0, 10));
+
+        assertThat(found).extracting(DispenserMovement::getId).containsExactly(load.getId());
+    }
 }

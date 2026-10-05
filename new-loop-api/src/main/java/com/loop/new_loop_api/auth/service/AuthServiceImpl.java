@@ -8,9 +8,9 @@ import com.loop.new_loop_api.auth.service.iService.AuthService;
 import com.loop.new_loop_api.common.security.JwtService;
 import com.loop.new_loop_api.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -21,6 +21,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     private final AuthenticationManager authenticationManager;
     private final UserDetailsService    userDetailsService;
@@ -36,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
         } catch (AuthenticationException ex) {
-            auditService.registerFailedLogin(request.getUsername(), failureReason(ex));
+            auditFailedLogin(request.getUsername(), ex);
             throw ex;
         }
         var user    = userRepository.findByUsername(request.getUsername()).orElseThrow();
@@ -46,9 +48,17 @@ public class AuthServiceImpl implements AuthService {
         return authMapper.toLoginResponse(user, token);
     }
 
-    private static String failureReason(AuthenticationException ex) {
-        if (ex instanceof BadCredentialsException) return "BAD_CREDENTIALS";
-        if (ex instanceof DisabledException)       return "USER_DISABLED";
-        return "AUTHENTICATION_FAILED";
+    // A failure to audit must not turn a 401 into a 500: it travels as a suppressed exception instead.
+    private void auditFailedLogin(String attemptedUsername, AuthenticationException ex) {
+        try {
+            if (userRepository.existsByUsername(attemptedUsername)) {
+                auditService.registerFailedLogin(attemptedUsername, LoginFailureReason.of(ex).name());
+            } else {
+                auditService.registerFailedLogin(null, LoginFailureReason.UNKNOWN_USER.name());
+            }
+        } catch (RuntimeException auditError) {
+            log.error("Could not audit a failed login", auditError);
+            ex.addSuppressed(auditError);
+        }
     }
 }

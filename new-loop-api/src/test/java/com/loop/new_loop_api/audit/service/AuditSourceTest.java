@@ -21,7 +21,7 @@ class AuditSourceTest {
             "NULL,    NULL,                                                  UNKNOWN",
             "tablet,  NULL,                                                  UNKNOWN",
     })
-    void should_resolveSourceFromClientHeaderOrUserAgent(String clientApp, String userAgent, String expected) {
+    void should_resolveSourceFromClientHeaderOrUserAgent(String clientApp, String userAgent, AuditSource expected) {
         assertThat(AuditSource.resolve(clientApp, userAgent)).isEqualTo(expected);
     }
 }

@@ -2,14 +2,13 @@ package com.loop.new_loop_api.audit.service;
 
 import java.util.Locale;
 
-/** Which client an audited action came from. Values match what the admin panel already labels. */
-public final class AuditSource {
-
-    public static final String ADMIN_WEB  = "ADMIN_WEB";
-    public static final String MOBILE_APP = "MOBILE_APP";
+/** Which client an audited action came from. Names match what the admin panel already labels. */
+public enum AuditSource {
+    ADMIN_WEB,
+    MOBILE_APP,
     /** No HTTP request behind the action: schedulers and async integration listeners. */
-    public static final String SYSTEM     = "SYSTEM";
-    public static final String UNKNOWN    = "UNKNOWN";
+    SYSTEM,
+    UNKNOWN;
 
     /** Sent by our own clients ("web" / "mobile"); the user agent is only a fallback for older app builds. */
     public static final String CLIENT_APP_HEADER = "X-Client-App";
@@ -17,10 +16,7 @@ public final class AuditSource {
     // React Native's HTTP stack: okhttp/Dalvik on Android, CFNetwork on iOS.
     private static final String[] MOBILE_USER_AGENT_MARKERS = {"okhttp", "dalvik", "cfnetwork", "expo"};
 
-    private AuditSource() {
-    }
-
-    public static String resolve(String clientAppHeader, String userAgent) {
+    public static AuditSource resolve(String clientAppHeader, String userAgent) {
         if (clientAppHeader != null) {
             return switch (clientAppHeader.trim().toLowerCase(Locale.ROOT)) {
                 case "web"    -> ADMIN_WEB;

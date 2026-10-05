@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.audit.controller;
 
 import com.loop.new_loop_api.audit.dto.AuditLogResponse;
+import com.loop.new_loop_api.audit.service.AuditSource;
 import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -47,7 +48,7 @@ public class AuditController {
             @RequestParam(required = false) String action,
             @RequestParam(required = false) UUID entityId,
             @RequestParam(required = false) UUID userId,
-            @RequestParam(required = false) String source,
+            @RequestParam(required = false) AuditSource source,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {

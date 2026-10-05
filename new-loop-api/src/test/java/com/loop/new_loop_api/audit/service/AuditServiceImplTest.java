@@ -68,7 +68,7 @@ class AuditServiceImplTest {
         auditService.register("CREATE_DISPENSER_MOVEMENT", "DispenserMovement", UUID.randomUUID(), null, null);
 
         var saved = savedLog();
-        assertThat(saved.getSource()).isEqualTo(AuditSource.MOBILE_APP);
+        assertThat(saved.getSource()).isEqualTo("MOBILE_APP");
         assertThat(saved.getIpAddress()).isEqualTo("10.0.0.7");
     }
 
@@ -78,7 +78,7 @@ class AuditServiceImplTest {
 
         auditService.register("UPDATE_USER", "User", UUID.randomUUID(), null, null);
 
-        assertThat(savedLog().getSource()).isEqualTo(AuditSource.ADMIN_WEB);
+        assertThat(savedLog().getSource()).isEqualTo("ADMIN_WEB");
     }
 
     @Test
@@ -86,7 +86,7 @@ class AuditServiceImplTest {
         auditService.register("SEND_DISPENSER_TO_ODOO", "DispenserMovement", UUID.randomUUID(), null, null);
 
         var saved = savedLog();
-        assertThat(saved.getSource()).isEqualTo(AuditSource.SYSTEM);
+        assertThat(saved.getSource()).isEqualTo("SYSTEM");
         assertThat(saved.getIpAddress()).isNull();
     }
 
@@ -104,7 +104,7 @@ class AuditServiceImplTest {
         assertThat(saved.getUserId()).isEqualTo(userId);
         assertThat(saved.getUsername()).isEqualTo("supervisor1");
         assertThat(saved.getUserRole()).isEqualTo("SUPERVISOR");
-        assertThat(saved.getSource()).isEqualTo(AuditSource.ADMIN_WEB);
+        assertThat(saved.getSource()).isEqualTo("ADMIN_WEB");
     }
 
     @Test
@@ -120,7 +120,7 @@ class AuditServiceImplTest {
         assertThat(saved.getUserId()).isNull();
         assertThat(saved.getUsername()).isEqualTo("chofer9");
         assertThat(saved.getReason()).isEqualTo("BAD_CREDENTIALS");
-        assertThat(saved.getSource()).isEqualTo(AuditSource.MOBILE_APP);
+        assertThat(saved.getSource()).isEqualTo("MOBILE_APP");
     }
 
     @Test
