@@ -115,6 +115,7 @@ class OdooDispatchServiceImplTest {
         assertThat(movement.getOdooPickingId()).isEqualTo(42);
         assertThat(movement.getOdooPickingName()).isEqualTo("WH/OUT/0001");
         assertThat(movement.getOdooReference()).isNotBlank();
+        assertThat(movement.getOdooSkippedSerials()).isEmpty();
 
         var logCaptor = ArgumentCaptor.forClass(IntegrationLog.class);
         verify(integrationLogRepository).save(logCaptor.capture());
@@ -190,6 +191,7 @@ class OdooDispatchServiceImplTest {
         var errorMessage = logCaptor.getValue().getErrorMessage();
         // Ningún equipo disponible: se cierra terminal (CANCELLED) para que el scheduler no reintente.
         assertThat(logCaptor.getValue().getStatus()).isEqualTo(IntegrationStatus.CANCELLED);
+        assertThat(movement.getOdooSkippedSerials()).containsExactlyInAnyOrder("SN-1", "SN-2");
         assertThat(errorMessage)
                 .contains("Hay equipos no disponibles")
                 .contains("SN-1 (no en expedicion)")
@@ -222,6 +224,8 @@ class OdooDispatchServiceImplTest {
 
         assertThat(movement.getOdooStatus()).isEqualTo("SENT");
         assertThat(movement.getOdooPickingId()).isEqualTo(7);
+        // SN-1 se quedó afuera de Odoo aunque Aguas lo recibió: queda registrado para trazarlo.
+        assertThat(movement.getOdooSkippedSerials()).containsExactly("SN-1");
 
         var logCaptor = ArgumentCaptor.forClass(IntegrationLog.class);
         verify(integrationLogRepository).save(logCaptor.capture());

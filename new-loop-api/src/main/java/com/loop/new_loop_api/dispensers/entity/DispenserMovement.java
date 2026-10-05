@@ -66,6 +66,14 @@ public class DispenserMovement {
     @Builder.Default
     private List<String> excludedSerials = new ArrayList<>();
 
+    // LOAD serials Aguas received but Odoo left out of the dispatch because they were not available in expedición.
+    @ElementCollection
+    @BatchSize(size = COLLECTION_BATCH_SIZE)
+    @CollectionTable(name = "dispenser_movement_odoo_skipped_serials", joinColumns = @JoinColumn(name = "movement_id"))
+    @Column(name = "serial", length = 100)
+    @Builder.Default
+    private List<String> odooSkippedSerials = new ArrayList<>();
+
     @Column(name = "aguas_movement_id", length = 50)
     private String aguasMovementId;
 

@@ -3,10 +3,12 @@ package com.loop.new_loop_api.dispensers.controller;
 import com.loop.new_loop_api.common.response.ApiResponse;
 import com.loop.new_loop_api.dispensers.dto.CreateDispenserMovementRequest;
 import com.loop.new_loop_api.dispensers.dto.DispenserMovementResponse;
+import com.loop.new_loop_api.dispensers.dto.SerialHistoryResponse;
 import com.loop.new_loop_api.dispensers.dto.ValidateOdooEquipmentRequest;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementService;
+import com.loop.new_loop_api.dispensers.service.iService.DispenserSerialHistoryService;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
 import jakarta.validation.Valid;
@@ -28,7 +30,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DispenserMovementController {
 
-    private final DispenserMovementService dispenserMovementService;
+    private final DispenserMovementService      dispenserMovementService;
+    private final DispenserSerialHistoryService dispenserSerialHistoryService;
     private final AguasEquipmentService    aguasEquipmentService;
     private final OdooDispatchService      odooDispatchService;
 
@@ -53,6 +56,12 @@ public class DispenserMovementController {
         var page = dispenserMovementService.getAllMovements(type, routeCode, status, from, to,
                 createdFrom, createdTo, pageable);
         return ResponseEntity.ok(ApiResponse.ok(page, "Dispenser movements retrieved successfully"));
+    }
+
+    @GetMapping("/serials/{serial}/history")
+    public ResponseEntity<ApiResponse<SerialHistoryResponse>> getSerialHistory(@PathVariable String serial) {
+        return ResponseEntity.ok(ApiResponse.ok(dispenserSerialHistoryService.getHistory(serial),
+                "Serial history retrieved successfully"));
     }
 
     @GetMapping("/aguas/locations")

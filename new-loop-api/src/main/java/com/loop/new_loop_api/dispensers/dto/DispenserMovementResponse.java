@@ -24,6 +24,8 @@ public class DispenserMovementResponse {
     private DispenserMovementStatus status;
     private List<String>            serials;
     private List<String>            excludedSerials;
+    private SerialExclusionReason   exclusionReason;
+    private List<String>            odooSkippedSerials;
     private String                  aguasMovementId;
     private String                  odooStatus;
     private Integer                 odooPickingId;

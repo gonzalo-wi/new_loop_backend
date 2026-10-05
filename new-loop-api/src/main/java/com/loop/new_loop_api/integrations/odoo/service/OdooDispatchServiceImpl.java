@@ -164,6 +164,7 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
         integrationLog.setRequestPayload(outcome.requestPayload());
 
         if (outcome.success()) {
+            recordSkipped(movement, List.of());
             markSent(integrationLog, movement, outcome.body(), outcome.result());
             return;
         }
@@ -175,6 +176,7 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
         if (!unavailable.isEmpty()) {
             var available = equipos.stream().filter(equipo -> !unavailable.contains(equipo)).toList();
             if (available.isEmpty()) {
+                recordSkipped(movement, equipos);
                 closeNoneAvailable(integrationLog, movement, outcome);
                 return;
             }
@@ -182,6 +184,7 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
                 var retry = dispatch(movement, new ArrayList<>(available), referenciaExterna);
                 integrationLog.setRequestPayload(retry.requestPayload());
                 if (retry.success()) {
+                    recordSkipped(movement, equipos.stream().filter(unavailable::contains).toList());
                     log.info("Odoo dispatch retried for movement {} excluding unavailable equipos {}",
                             movement.getId(), unavailable);
                     markSent(integrationLog, movement, retry.body(), retry.result());
@@ -192,6 +195,11 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
             }
         }
         markError(integrationLog, movement, describe(outcome));
+    }
+
+    private static void recordSkipped(DispenserMovement movement, List<String> skipped) {
+        movement.getOdooSkippedSerials().clear();
+        movement.getOdooSkippedSerials().addAll(skipped);
     }
 
     private DispatchOutcome dispatch(DispenserMovement movement, List<String> equipos, String referenciaExterna) {

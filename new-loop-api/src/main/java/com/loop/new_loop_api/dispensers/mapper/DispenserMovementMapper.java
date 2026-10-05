@@ -2,6 +2,7 @@ package com.loop.new_loop_api.dispensers.mapper;
 
 import com.loop.new_loop_api.dispensers.dto.CreateDispenserMovementRequest;
 import com.loop.new_loop_api.dispensers.dto.DispenserMovementResponse;
+import com.loop.new_loop_api.dispensers.dto.SerialExclusionReason;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovement;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +36,9 @@ public class DispenserMovementMapper {
                 .status(movement.getStatus())
                 .serials(new ArrayList<>(movement.getSerials()))
                 .excludedSerials(new ArrayList<>(movement.getExcludedSerials()))
+                .exclusionReason(movement.getExcludedSerials().isEmpty()
+                        ? null : SerialExclusionReason.forType(movement.getType()))
+                .odooSkippedSerials(new ArrayList<>(movement.getOdooSkippedSerials()))
                 .aguasMovementId(movement.getAguasMovementId())
                 .odooStatus(movement.getOdooStatus())
                 .odooPickingId(movement.getOdooPickingId())
