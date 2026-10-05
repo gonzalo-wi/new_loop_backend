@@ -36,6 +36,8 @@ public class AuditController {
             @Parameter(name = "entityName", example = "Branch"),
             @Parameter(name = "action",     example = "CREATE_BRANCH"),
             @Parameter(name = "entityId",   example = "550e8400-e29b-41d4-a716-446655440000"),
+            @Parameter(name = "userId",     example = "550e8400-e29b-41d4-a716-446655440000"),
+            @Parameter(name = "source",     example = "MOBILE_APP"),
             @Parameter(name = "from",       example = "2026-06-01T00:00:00"),
             @Parameter(name = "to",         example = "2026-06-30T23:59:59")
     })
@@ -44,11 +46,13 @@ public class AuditController {
             @RequestParam(required = false) String entityName,
             @RequestParam(required = false) String action,
             @RequestParam(required = false) UUID entityId,
+            @RequestParam(required = false) UUID userId,
+            @RequestParam(required = false) String source,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
-        var result = auditService.getAll(entityName, action, entityId, from, to, pageable);
+        var result = auditService.getAll(entityName, action, entityId, userId, source, from, to, pageable);
         return ResponseEntity.ok(ApiResponse.ok(result, "Audit logs retrieved successfully"));
     }
 }

@@ -14,7 +14,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -41,6 +44,90 @@ class AuditServiceImplTest {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    private void bindRequest(String clientApp, String userAgent) {
+        var request = new MockHttpServletRequest();
+        request.setRemoteAddr("10.0.0.7");
+        if (clientApp != null) request.addHeader(AuditSource.CLIENT_APP_HEADER, clientApp);
+        if (userAgent != null) request.addHeader("User-Agent", userAgent);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    }
+
+    private AuditLog savedLog() {
+        var captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    void should_recordMobileSourceAndIp_when_requestComesFromTheMobileApp() {
+        bindRequest("mobile", null);
+
+        auditService.register("CREATE_DISPENSER_MOVEMENT", "DispenserMovement", UUID.randomUUID(), null, null);
+
+        var saved = savedLog();
+        assertThat(saved.getSource()).isEqualTo(AuditSource.MOBILE_APP);
+        assertThat(saved.getIpAddress()).isEqualTo("10.0.0.7");
+    }
+
+    @Test
+    void should_recordWebSource_when_requestComesFromTheAdminPanel() {
+        bindRequest("web", null);
+
+        auditService.register("UPDATE_USER", "User", UUID.randomUUID(), null, null);
+
+        assertThat(savedLog().getSource()).isEqualTo(AuditSource.ADMIN_WEB);
+    }
+
+    @Test
+    void should_recordSystemSourceWithoutIp_when_thereIsNoHttpRequest() {
+        auditService.register("SEND_DISPENSER_TO_ODOO", "DispenserMovement", UUID.randomUUID(), null, null);
+
+        var saved = savedLog();
+        assertThat(saved.getSource()).isEqualTo(AuditSource.SYSTEM);
+        assertThat(saved.getIpAddress()).isNull();
+    }
+
+    @Test
+    void should_recordLoginWithTheUserThatLoggedIn() {
+        bindRequest("web", null);
+        var userId = UUID.randomUUID();
+
+        auditService.registerLogin(userId, "supervisor1", "SUPERVISOR");
+
+        var saved = savedLog();
+        assertThat(saved.getAction()).isEqualTo("LOGIN");
+        assertThat(saved.getEntityName()).isEqualTo("User");
+        assertThat(saved.getEntityId()).isEqualTo(userId);
+        assertThat(saved.getUserId()).isEqualTo(userId);
+        assertThat(saved.getUsername()).isEqualTo("supervisor1");
+        assertThat(saved.getUserRole()).isEqualTo("SUPERVISOR");
+        assertThat(saved.getSource()).isEqualTo(AuditSource.ADMIN_WEB);
+    }
+
+    @Test
+    void should_recordFailedLoginWithTheAttemptedUsernameAndReason() {
+        bindRequest(null, "okhttp/4.12.0");
+
+        auditService.registerFailedLogin("chofer9", "BAD_CREDENTIALS");
+
+        var saved = savedLog();
+        assertThat(saved.getAction()).isEqualTo("LOGIN_FAILED");
+        assertThat(saved.getEntityName()).isEqualTo("User");
+        assertThat(saved.getEntityId()).isNull();
+        assertThat(saved.getUserId()).isNull();
+        assertThat(saved.getUsername()).isEqualTo("chofer9");
+        assertThat(saved.getReason()).isEqualTo("BAD_CREDENTIALS");
+        assertThat(saved.getSource()).isEqualTo(AuditSource.MOBILE_APP);
+    }
+
+    @Test
+    void should_truncateAttemptedUsername_when_failedLoginUsernameIsTooLong() {
+        auditService.registerFailedLogin("x".repeat(500), "BAD_CREDENTIALS");
+
+        assertThat(savedLog().getUsername()).hasSize(AuditServiceImpl.MAX_ATTEMPTED_USERNAME_LENGTH);
     }
 
     private void authenticateAs(AuthenticatedUser user) {

@@ -13,6 +13,10 @@ public interface AuditService {
 
     void register(String action, String entityName, UUID entityId, Object oldValue, Object newValue, String reason);
 
-    Page<AuditLogResponse> getAll(String entityName, String action, UUID entityId,
+    void registerLogin(UUID userId, String username, String role);
+
+    void registerFailedLogin(String attemptedUsername, String reason);
+
+    Page<AuditLogResponse> getAll(String entityName, String action, UUID entityId, UUID userId, String source,
                                   LocalDateTime from, LocalDateTime to, Pageable pageable);
 }
