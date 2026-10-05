@@ -2,6 +2,7 @@ package com.loop.new_loop_api.common.config;
 
 import com.loop.new_loop_api.audit.service.AuditServiceImpl;
 import com.loop.new_loop_api.integrations.aguas.scheduler.AguasRetryScheduler;
+import com.loop.new_loop_api.integrations.common.scheduler.IntegrationLogPurgeScheduler;
 import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProc
 import javax.sql.DataSource;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -37,13 +39,13 @@ class SchedulingConfigTest {
 
     @Test
     void everyScheduledJobShouldHoldADistinctClusterLock() {
-        var retry = scheduledMethod(AguasRetryScheduler.class);
-        var purge = scheduledMethod(AuditServiceImpl.class);
+        var jobs = List.of(
+                scheduledMethod(AguasRetryScheduler.class),
+                scheduledMethod(AuditServiceImpl.class),
+                scheduledMethod(IntegrationLogPurgeScheduler.class));
 
-        assertThat(retry.getAnnotation(SchedulerLock.class)).isNotNull();
-        assertThat(purge.getAnnotation(SchedulerLock.class)).isNotNull();
-        assertThat(retry.getAnnotation(SchedulerLock.class).name())
-                .isNotEqualTo(purge.getAnnotation(SchedulerLock.class).name());
+        assertThat(jobs).allMatch(job -> job.isAnnotationPresent(SchedulerLock.class));
+        assertThat(jobs).extracting(job -> job.getAnnotation(SchedulerLock.class).name()).doesNotHaveDuplicates();
     }
 
     @Test

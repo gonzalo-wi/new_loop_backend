@@ -15,7 +15,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -99,5 +101,17 @@ class AuditServiceImplTest {
         assertThat(saved.getUserId()).isNull();
         assertThat(saved.getUsername()).isNull();
         assertThat(saved.getUserRole()).isNull();
+    }
+
+    @Test
+    void should_purgeLogsOlderThanConfiguredRetention() {
+        ReflectionTestUtils.setField(auditService, "retentionDays", 365);
+        var before = LocalDateTime.now().minusDays(365);
+
+        auditService.purgeOldLogs();
+
+        var captor = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(auditLogRepository).deleteByCreatedAtBefore(captor.capture());
+        assertThat(captor.getValue()).isBetween(before, LocalDateTime.now().minusDays(365));
     }
 }

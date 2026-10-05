@@ -6,6 +6,8 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,4 +18,6 @@ public interface IntegrationLogRepository
             IntegrationName integrationName, IntegrationStatus status, Integer maxRetries);
 
     List<IntegrationLog> findByStatusAndRetryCountLessThan(IntegrationStatus status, Integer maxRetries);
+
+    long deleteByStatusInAndCreatedAtBefore(Collection<IntegrationStatus> statuses, LocalDateTime cutoff);
 }

@@ -11,6 +11,7 @@ import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.common.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -59,12 +60,15 @@ public class AuditServiceImpl implements AuditService {
                 .map(auditLogMapper::toResponse);
     }
 
-    // Runs every day at midnight — deletes records older than 7 days
+    @Value("${app.audit.retention-days}")
+    private int retentionDays;
+
+    // Runs every day at midnight — deletes records older than the configured retention.
     @Scheduled(cron = "0 0 0 * * *")
     @SchedulerLock(name = "auditService.purgeOldLogs", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1M")
     @Transactional
     public void purgeOldLogs() {
-        auditLogRepository.deleteByCreatedAtBefore(LocalDateTime.now().minusDays(7));
+        auditLogRepository.deleteByCreatedAtBefore(LocalDateTime.now().minusDays(retentionDays));
     }
 
     private UUID getCurrentUserId() {

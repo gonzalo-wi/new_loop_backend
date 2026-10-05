@@ -8,6 +8,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
 ### Added
+- Limpieza automática del registro de envíos a Aguas/Odoo: cada noche se borran los envíos exitosos o cancelados de más de 90 días (configurable con `INTEGRATION_LOG_RETENTION_DAYS`). Los que tienen error o están pendientes nunca se borran.
 - Tareas programadas (reintentos de integraciones con Aguas/Odoo y limpieza nocturna de auditoría): con más de una instancia del backend sobre la misma base, cada ejecución corre en una sola. Los reintentos esperan 2 minutos después del arranque, y se pueden apagar todas las tareas con `SCHEDULING_ENABLED=false` (útil para correr el backend local contra una base compartida).
 - Resumen de repartos (`GET /routes/summary`): devuelve en una sola consulta el total de repartos, cuántos están activos e inactivos y el desglose por sucursal, para que el dashboard no tenga que traer todos los repartos solo para contarlos.
 - Estadísticas de dispensers (`GET /dispenser-movements/stats?from&to`): devuelve ya calculados en la base el volumen de instalaciones y retiros, la serie por día, la actividad por día y hora, la productividad por usuario (incluido el ritmo entre movimientos), los totales por técnico y la calidad de integración con Aguas/Odoo con la lista de movimientos a corregir. Rango máximo de 92 días; si el rango es inválido responde 400. Los cancelados no se cuentan.
@@ -19,6 +20,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Observabilidad del backend: métricas de rendimiento, errores y eventos clave de negocio (controles enviados/rechazados/corregidos a Aguas, movimientos de dispenser, llamadas a integraciones externas) ahora se pueden monitorear en tiempo real desde Grafana, alimentado por Prometheus. El stack se levanta junto con la app vía `docker compose up`.
 
 ### Changed
+- Auditoría: el historial ahora se conserva 12 meses en lugar de 7 días (configurable con `AUDIT_RETENTION_DAYS`). Con el volumen actual son unos 50 MB por año.
 - Autenticación: el backend ya no consulta la tabla de usuarios en cada request; reutiliza los datos del usuario durante 2 minutos (configurable con `USER_CACHE_TTL`) y los refresca al editar, activar o desactivar al usuario.
 - Índices nuevos en controles de stock (fecha + tipo + estado, y reparto + tipo + fecha) y en pedidos (fecha de creación), para que el dashboard, el chequeo de controles duplicados y el listado de pedidos sigan siendo rápidos cuando crezca el volumen.
 - Los listados (controles de stock, repartos, usuarios, pedidos) cargan sus datos relacionados en lote en vez de hacer una consulta por fila: una página de 20 controles pasa de ~109 consultas a 6 y el listado de repartos de ~207 a 7. La respuesta no cambia.
