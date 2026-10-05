@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.stockcontrols.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.common.exception.UniqueConstraintViolation;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
 import com.loop.new_loop_api.integrations.aguas.metrics.AguasControlMetrics;
 import com.loop.new_loop_api.users.entity.Role;
@@ -40,6 +41,7 @@ import com.loop.new_loop_api.stockcontrols.repository.StockControlRepository;
 import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -64,6 +66,8 @@ public class StockControlServiceImpl implements StockControlService {
             Set.of(ControlStatus.SENT_TO_AGUAS, ControlStatus.AGUAS_ERROR);
 
     private static final String CORRECT_STOCK_CONTROL_ACTION = "CORRECT_STOCK_CONTROL";
+    // Partial unique index from V30; must match the migration's name.
+    private static final String ACTIVE_CONTROL_UNIQUE_INDEX  = "uq_stock_controls_type_route_date_active";
 
     private final StockControlRepository    stockControlRepository;
     private final StockControlMapper        stockControlMapper;
@@ -93,7 +97,7 @@ public class StockControlServiceImpl implements StockControlService {
             control.setStatus(ControlStatus.PENDING_DRIVER_APPROVAL);
             control.setConfirmedAt(LocalDateTime.now());
         }
-        var saved    = stockControlRepository.save(control);
+        var saved    = saveAndFlushControl(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register("CREATE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
         if (saved.getType() == ControlType.EXIT) {
@@ -130,11 +134,12 @@ public class StockControlServiceImpl implements StockControlService {
             throw new StockControlNotModifiableException(id, control.getStatus());
         }
         var oldValue = stockControlMapper.toResponse(control);
+        validateNoOtherActiveControl(control, targetDate(request, control));
         stockControlMapper.updateEntity(request, control);
         if (request.getItems() != null) {
             replaceItems(control, request.getItems());
         }
-        var saved    = stockControlRepository.save(control);
+        var saved    = saveAndFlushControl(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register("UPDATE_STOCK_CONTROL", "StockControl", saved.getId(), oldValue, response);
         return response;
@@ -250,7 +255,7 @@ public class StockControlServiceImpl implements StockControlService {
     /** Rebuilds the control's items from scratch: clears and flushes before re-adding to avoid stale rows. */
     private void replaceItems(StockControl control, List<CreateStockControlItemRequest> items) {
         control.getItems().clear();
-        stockControlRepository.saveAndFlush(control);
+        saveAndFlushControl(control);
         control.getItems().addAll(buildItems(items, control));
     }
 
@@ -294,6 +299,33 @@ public class StockControlServiceImpl implements StockControlService {
     private StockControl findControlById(UUID id) {
         return stockControlRepository.findById(id)
                 .orElseThrow(() -> new StockControlNotFoundException(id));
+    }
+
+    private static LocalDate targetDate(UpdateStockControlRequest request, StockControl control) {
+        return request.getControlDate() != null ? request.getControlDate() : control.getControlDate();
+    }
+
+    /**
+     * An edit can move the control to another date: it must not land on one that already has an active control.
+     * Runs before the entity is modified, otherwise the query's auto-flush would hit the unique index first.
+     */
+    private void validateNoOtherActiveControl(StockControl control, LocalDate date) {
+        if (stockControlRepository.existsByTypeAndRouteIdAndControlDateAndStatusNotAndIdNot(
+                control.getType(), control.getRoute().getId(), date, ControlStatus.CANCELLED, control.getId())) {
+            throw new DuplicateControlException(control.getType(), control.getRoute().getId(), date);
+        }
+    }
+
+    /** Flushes so a concurrent duplicate that slipped past the exists() checks surfaces here as a 409. */
+    private StockControl saveAndFlushControl(StockControl control) {
+        try {
+            return stockControlRepository.saveAndFlush(control);
+        } catch (DataIntegrityViolationException ex) {
+            if (UniqueConstraintViolation.isCausedBy(ex, ACTIVE_CONTROL_UNIQUE_INDEX)) {
+                throw new DuplicateControlException(control.getType(), control.getRoute().getId(), control.getControlDate());
+            }
+            throw ex;
+        }
     }
 
     private Branch findBranchById(UUID id) {

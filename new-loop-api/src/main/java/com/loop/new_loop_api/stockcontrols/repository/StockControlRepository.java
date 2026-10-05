@@ -19,6 +19,9 @@ public interface StockControlRepository extends JpaRepository<StockControl, UUID
     boolean existsByTypeAndRouteIdAndControlDateAndStatusNot(
             ControlType type, UUID routeId, LocalDate controlDate, ControlStatus status);
 
+    boolean existsByTypeAndRouteIdAndControlDateAndStatusNotAndIdNot(
+            ControlType type, UUID routeId, LocalDate controlDate, ControlStatus status, UUID excludedId);
+
     Optional<StockControl> findByTypeAndRouteIdAndControlDateAndStatusNot(
             ControlType type, UUID routeId, LocalDate controlDate, ControlStatus status);
 

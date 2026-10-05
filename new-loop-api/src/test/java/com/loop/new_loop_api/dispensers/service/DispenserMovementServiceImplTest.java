@@ -9,19 +9,23 @@ import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.event.DispenserMovementReadyForAguasEvent;
 import com.loop.new_loop_api.dispensers.event.DispenserMovementUnregisteredSerialsExcludedEvent;
+import com.loop.new_loop_api.dispensers.exception.DuplicateDispenserMovementException;
 import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
@@ -95,7 +100,7 @@ class DispenserMovementServiceImplTest {
         when(unregisteredDispenserService.normalize("SN-1")).thenReturn("SN-1");
         when(unregisteredDispenserService.normalize("SN-2")).thenReturn("SN-2");
         when(unregisteredDispenserService.normalize("SN-3")).thenReturn("SN-3");
-        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
         dispenserMovementService.createMovement(request);
@@ -121,7 +126,7 @@ class DispenserMovementServiceImplTest {
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(unregisteredDispenserService.findUnregisteredSerials(any())).thenReturn(Set.of("SN-1"));
         when(unregisteredDispenserService.normalize("SN-1")).thenReturn("SN-1");
-        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
         dispenserMovementService.createMovement(request);
@@ -148,7 +153,7 @@ class DispenserMovementServiceImplTest {
         when(unregisteredDispenserService.findUnregisteredSerials(any())).thenReturn(Set.of("SN-2"));
         when(unregisteredDispenserService.normalize("SN-1")).thenReturn("SN-1");
         when(unregisteredDispenserService.normalize("SN-2")).thenReturn("SN-2");
-        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
         dispenserMovementService.createMovement(request);
@@ -171,7 +176,7 @@ class DispenserMovementServiceImplTest {
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-2"));
-        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
         dispenserMovementService.createMovement(request);
@@ -193,7 +198,7 @@ class DispenserMovementServiceImplTest {
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(unregisteredDispenserService.findUnregisteredSerials(any())).thenReturn(Set.of());
-        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
         dispenserMovementService.createMovement(request);
@@ -216,7 +221,7 @@ class DispenserMovementServiceImplTest {
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of());
-        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
         dispenserMovementService.createMovement(request);
@@ -239,7 +244,7 @@ class DispenserMovementServiceImplTest {
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-2"));
-        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
         dispenserMovementService.createMovement(request);
@@ -265,7 +270,7 @@ class DispenserMovementServiceImplTest {
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-1"));
-        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
 
         dispenserMovementService.createMovement(request);
@@ -273,5 +278,45 @@ class DispenserMovementServiceImplTest {
         assertThat(movement.getStatus()).isEqualTo(DispenserMovementStatus.SKIPPED_UNREGISTERED);
         verify(dispenserMovementMetrics).recordUnavailableInOdooExcluded(1);
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void should_throwDuplicate_when_concurrentInsertHitsActiveMovementUniqueIndex() {
+        stubLoadMovementUpToSave();
+        when(dispenserMovementRepository.saveAndFlush(any()))
+                .thenThrow(uniqueViolation("uq_dispenser_movements_type_route_date_active"));
+
+        assertThatThrownBy(() -> dispenserMovementService.createMovement(loadRequest(List.of("SN-1"))))
+                .isInstanceOf(DuplicateDispenserMovementException.class);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void should_rethrow_when_integrityViolationIsNotTheDuplicateIndex() {
+        stubLoadMovementUpToSave();
+        var other = uniqueViolation("some_other_constraint");
+        when(dispenserMovementRepository.saveAndFlush(any())).thenThrow(other);
+
+        assertThatThrownBy(() -> dispenserMovementService.createMovement(loadRequest(List.of("SN-1"))))
+                .isSameAs(other);
+    }
+
+    private void stubLoadMovementUpToSave() {
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.LOAD)
+                .routeCode("1")
+                .movementDate(LocalDate.now())
+                .serials(new java.util.ArrayList<>(List.of("SN-1")))
+                .build();
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(false);
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of());
+    }
+
+    private static DataIntegrityViolationException uniqueViolation(String constraintName) {
+        var cause = new ConstraintViolationException("duplicate key", new SQLException("23505"), constraintName);
+        return new DataIntegrityViolationException("could not execute statement", cause);
     }
 }

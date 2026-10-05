@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.dispensers.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.common.exception.UniqueConstraintViolation;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
 import com.loop.new_loop_api.dispensers.dto.CreateDispenserMovementRequest;
 import com.loop.new_loop_api.dispensers.dto.DispenserMovementResponse;
@@ -24,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -46,6 +48,9 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     private static final int UNLOAD_LOCATION_PLANTA_BAJA   = 49; 
     private static final int UNLOAD_STATE_EN_REPARACION    = 4;  
 
+    // Partial unique index from V30; must match the migration's name.
+    private static final String ACTIVE_MOVEMENT_UNIQUE_INDEX = "uq_dispenser_movements_type_route_date_active";
+
     private final DispenserMovementRepository dispenserMovementRepository;
     private final DispenserMovementMapper     dispenserMovementMapper;
     private final CurrentUserProvider         currentUserProvider;
@@ -64,7 +69,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         var movement = buildMovement(request, date);
         excludeUnregisteredSerials(movement);
         excludeUnavailableInOdoo(movement);
-        var saved    = dispenserMovementRepository.save(movement);
+        var saved    = insertMovement(movement);
         var response = dispenserMovementMapper.toResponse(saved);
         auditService.register("CREATE_DISPENSER_MOVEMENT", "DispenserMovement", saved.getId(), null, response);
         if (saved.getStatus() != DispenserMovementStatus.SKIPPED_UNREGISTERED) {
@@ -139,6 +144,19 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     }
 
     
+    /** Flushes so a concurrent duplicate that slipped past validateNoDuplicate surfaces here as a 409. */
+    private DispenserMovement insertMovement(DispenserMovement movement) {
+        try {
+            return dispenserMovementRepository.saveAndFlush(movement);
+        } catch (DataIntegrityViolationException ex) {
+            if (UniqueConstraintViolation.isCausedBy(ex, ACTIVE_MOVEMENT_UNIQUE_INDEX)) {
+                throw new DuplicateDispenserMovementException(
+                        movement.getType(), movement.getRouteCode(), movement.getMovementDate());
+            }
+            throw ex;
+        }
+    }
+
     private void validateNoDuplicate(CreateDispenserMovementRequest request, LocalDate date) {
         if (dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
                 request.getType(), request.getRouteCode(), date, DispenserMovementStatus.CANCELLED)) {
