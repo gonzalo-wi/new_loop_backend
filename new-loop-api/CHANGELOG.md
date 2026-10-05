@@ -17,6 +17,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Observabilidad del backend: métricas de rendimiento, errores y eventos clave de negocio (controles enviados/rechazados/corregidos a Aguas, movimientos de dispenser, llamadas a integraciones externas) ahora se pueden monitorear en tiempo real desde Grafana, alimentado por Prometheus. El stack se levanta junto con la app vía `docker compose up`.
 
 ### Changed
+- Autenticación: el backend ya no consulta la tabla de usuarios en cada request; reutiliza los datos del usuario durante 2 minutos (configurable con `USER_CACHE_TTL`) y los refresca al editar, activar o desactivar al usuario.
 - Índices nuevos en controles de stock (fecha + tipo + estado, y reparto + tipo + fecha) y en pedidos (fecha de creación), para que el dashboard, el chequeo de controles duplicados y el listado de pedidos sigan siendo rápidos cuando crezca el volumen.
 - Los listados (controles de stock, repartos, usuarios, pedidos) cargan sus datos relacionados en lote en vez de hacer una consulta por fila: una página de 20 controles pasa de ~109 consultas a 6 y el listado de repartos de ~207 a 7. La respuesta no cambia.
 - El listado de movimientos de dispenser carga los seriales en lote: una página ya no hace dos consultas extra por cada movimiento. Se suma un índice en la fecha de registro (`created_at`). La respuesta no cambia.
@@ -25,6 +26,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Salida de dispensers a Odoo: si al despachar algunos equipos no están disponibles en expedición, ahora se despachan igual los que sí lo están (antes Odoo rechazaba el lote completo y no salía ninguno). Los equipos no disponibles quedan registrados en el detalle del error. Si ninguno está disponible, el despacho se cierra como error definitivo y deja de reintentarse.
 
 ### Fixed
+- Un usuario desactivado ya no puede seguir usando la API con un token emitido antes de la desactivación.
 - Endpoints de catálogo de Odoo (equipos disponibles y validación de series) y de Aguas (ubicaciones/estados): devolvían una respuesta corrupta (las propiedades internas del árbol JSON en vez del contenido), por lo que la app no veía ningún equipo/dato. Ahora devuelven el JSON real.
 - Salida y vuelta de dispensers a Aguas: se corrige el rechazo HTTP 400 ("Todos los campos son requeridos") que dejaba los movimientos reintentando en bucle. La salida al reparto ahora envía los campos que Aguas exige (`esrecarga=1` y `accion=3`) y la vuelta a planta va con `esrecarga=0`. Además, cuando el movimiento se registró sin usuario de sesión, se usa el nombre del técnico como usuario para no mandar el campo vacío.
 

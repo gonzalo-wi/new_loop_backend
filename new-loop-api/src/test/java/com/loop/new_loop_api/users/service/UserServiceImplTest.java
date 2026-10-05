@@ -2,6 +2,8 @@ package com.loop.new_loop_api.users.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
+import com.loop.new_loop_api.common.security.AuthenticatedUserCache;
+import com.loop.new_loop_api.users.dto.UpdateUserRequest;
 import com.loop.new_loop_api.users.dto.UserResponse;
 import com.loop.new_loop_api.users.entity.User;
 import com.loop.new_loop_api.users.mapper.UserMapper;
@@ -23,10 +25,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +41,7 @@ class UserServiceImplTest {
     @Mock private BranchRepository branchRepository;
     @Mock private PasswordEncoder  passwordEncoder;
     @Mock private AuditService     auditService;
+    @Mock private AuthenticatedUserCache authenticatedUserCache;
 
     @InjectMocks private UserServiceImpl userService;
 
@@ -74,5 +79,41 @@ class UserServiceImplTest {
 
         org.mockito.Mockito.verify(userRepository)
                 .searchUsers(eq(null), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void deactivateUser_invalidatesCachedSession() {
+        var user = existingUser();
+
+        userService.deactivateUser(user.getId());
+
+        verify(authenticatedUserCache).invalidate(user.getUsername());
+    }
+
+    @Test
+    void activateUser_invalidatesCachedSession() {
+        var user = existingUser();
+
+        userService.activateUser(user.getId());
+
+        verify(authenticatedUserCache).invalidate(user.getUsername());
+    }
+
+    @Test
+    void updateUser_invalidatesCachedSession() {
+        var user = existingUser();
+        when(userRepository.save(user)).thenReturn(user);
+
+        userService.updateUser(user.getId(), new UpdateUserRequest());
+
+        verify(authenticatedUserCache).invalidate(user.getUsername());
+    }
+
+    private User existingUser() {
+        var user = new User();
+        user.setId(UUID.randomUUID());
+        user.setUsername("juan.perez");
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        return user;
     }
 }

@@ -4,6 +4,7 @@ import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.branches.exception.BranchNotFoundException;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
+import com.loop.new_loop_api.common.security.AuthenticatedUserCache;
 import com.loop.new_loop_api.users.dto.CreateUserRequest;
 import com.loop.new_loop_api.users.dto.UpdateUserRequest;
 import com.loop.new_loop_api.users.dto.UserResponse;
@@ -33,6 +34,7 @@ public class UserServiceImpl implements UserService {
     private final BranchRepository branchRepository;
     private final PasswordEncoder  passwordEncoder;
     private final AuditService     auditService;
+    private final AuthenticatedUserCache authenticatedUserCache;
 
     @Override
     @Transactional
@@ -78,6 +80,7 @@ public class UserServiceImpl implements UserService {
         validateBranchRequirement(user.getRole(), user.getBranch());
         var response = userMapper.toResponse(userRepository.save(user));
         auditService.register("UPDATE_USER", "User", id, oldValue, response);
+        authenticatedUserCache.invalidate(user.getUsername());
         return response;
     }
 
@@ -88,6 +91,7 @@ public class UserServiceImpl implements UserService {
         user.setActive(false);
         userRepository.save(user);
         auditService.register("DEACTIVATE_USER", "User", id, null, null);
+        authenticatedUserCache.invalidate(user.getUsername());
     }
 
     @Override
@@ -97,6 +101,7 @@ public class UserServiceImpl implements UserService {
         user.setActive(true);
         userRepository.save(user);
         auditService.register("ACTIVATE_USER", "User", id, null, null);
+        authenticatedUserCache.invalidate(user.getUsername());
     }
 
     @Override
