@@ -8,6 +8,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
 ### Added
+- Resumen de repartos (`GET /routes/summary`): devuelve en una sola consulta el total de repartos, cuántos están activos e inactivos y el desglose por sucursal, para que el dashboard no tenga que traer todos los repartos solo para contarlos.
 - Estadísticas de dispensers (`GET /dispenser-movements/stats?from&to`): devuelve ya calculados en la base el volumen de instalaciones y retiros, la serie por día, la actividad por día y hora, la productividad por usuario (incluido el ritmo entre movimientos), los totales por técnico y la calidad de integración con Aguas/Odoo con la lista de movimientos a corregir. Rango máximo de 92 días; si el rango es inválido responde 400. Los cancelados no se cuentan.
 - Dispensers no normalizados en descargas (UNLOAD): los equipos que jMobile marca como no registrados en un cliente ya no se descartan. Se envían a Odoo a una ubicación específica de "equipos no normalizados", sin pasar por taller ni generar orden de reparación. Siguen sin mandarse a Aguas. El envío es en segundo plano, con reintentos automáticos, y el movimiento guarda el estado y el picking de Odoo aparte del de reparación.
 - Listado de movimientos de dispenser: se puede filtrar por fecha de registro (`createdFrom`/`createdTo`), además de por la fecha del movimiento. Sirve para ver lo que se cargó en el día aunque la carga esté fechada para el próximo reparto.

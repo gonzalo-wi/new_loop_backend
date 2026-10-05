@@ -7,12 +7,15 @@ import com.loop.new_loop_api.branches.exception.BranchNotFoundException;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
 import com.loop.new_loop_api.routes.dto.CreateRouteRequest;
 import com.loop.new_loop_api.routes.dto.RouteResponse;
+import com.loop.new_loop_api.routes.dto.RouteSummaryResponse;
+import com.loop.new_loop_api.routes.dto.RouteSummaryResponse.BranchSummary;
 import com.loop.new_loop_api.routes.dto.UpdateRouteRequest;
 import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.routes.exception.RouteCodeAlreadyExistsException;
 import com.loop.new_loop_api.routes.exception.RouteNotFoundException;
 import com.loop.new_loop_api.routes.exception.UserIsNotDriverException;
 import com.loop.new_loop_api.routes.mapper.RouteMapper;
+import com.loop.new_loop_api.routes.repository.RouteBranchCount;
 import com.loop.new_loop_api.routes.repository.RouteRepository;
 import com.loop.new_loop_api.routes.service.iService.RouteService;
 import com.loop.new_loop_api.users.entity.Role;
@@ -26,6 +29,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -68,6 +74,15 @@ public class RouteServiceImpl implements RouteService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public RouteSummaryResponse getSummary() {
+        var byBranch = summarizeByBranch(routeRepository.countByBranchAndActive());
+        var active   = byBranch.stream().mapToLong(BranchSummary::active).sum();
+        var inactive = byBranch.stream().mapToLong(BranchSummary::inactive).sum();
+        return new RouteSummaryResponse(active + inactive, active, inactive, byBranch);
+    }
+
+    @Override
     @Transactional
     public RouteResponse updateRoute(UUID id, UpdateRouteRequest request) {
         var route    = findRouteById(id);
@@ -91,6 +106,26 @@ public class RouteServiceImpl implements RouteService {
     @Transactional
     public void activateRoute(UUID id) {
         activationService.setActive(routeRepository, findRouteById(id), id, true, "Route", "ACTIVATE_ROUTE");
+    }
+
+    private List<BranchSummary> summarizeByBranch(List<RouteBranchCount> rows) {
+        var byBranch = new LinkedHashMap<UUID, BranchSummary>();
+        for (var row : rows) {
+            byBranch.merge(row.branchId(), toBranchSummary(row), RouteServiceImpl::addCounts);
+        }
+        return byBranch.values().stream()
+                .sorted(Comparator.comparing(BranchSummary::branchName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private static BranchSummary toBranchSummary(RouteBranchCount row) {
+        return Boolean.TRUE.equals(row.active())
+                ? new BranchSummary(row.branchId(), row.branchName(), row.count(), 0)
+                : new BranchSummary(row.branchId(), row.branchName(), 0, row.count());
+    }
+
+    private static BranchSummary addCounts(BranchSummary a, BranchSummary b) {
+        return new BranchSummary(a.branchId(), a.branchName(), a.active() + b.active(), a.inactive() + b.inactive());
     }
 
     private void validateCodeIsAvailable(String code) {

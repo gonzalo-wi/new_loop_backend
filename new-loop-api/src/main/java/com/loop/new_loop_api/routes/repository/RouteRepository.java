@@ -7,11 +7,20 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface RouteRepository extends JpaRepository<Route, UUID> {
 
     boolean existsByCode(String code);
+
+    /** Route counts grouped by branch and active flag, so summaries don't load every route. */
+    @Query("""
+            select new com.loop.new_loop_api.routes.repository.RouteBranchCount(b.id, b.name, r.active, count(r))
+            from Route r join r.branch b
+            group by b.id, b.name, r.active
+            """)
+    List<RouteBranchCount> countByBranchAndActive();
 
     /**
      * Optional case-insensitive search over code, truck plate, branch and driver, ordered naturally

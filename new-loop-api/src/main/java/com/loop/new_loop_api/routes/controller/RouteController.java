@@ -3,6 +3,7 @@ package com.loop.new_loop_api.routes.controller;
 import com.loop.new_loop_api.common.response.ApiResponse;
 import com.loop.new_loop_api.routes.dto.CreateRouteRequest;
 import com.loop.new_loop_api.routes.dto.RouteResponse;
+import com.loop.new_loop_api.routes.dto.RouteSummaryResponse;
 import com.loop.new_loop_api.routes.dto.UpdateRouteRequest;
 import com.loop.new_loop_api.routes.service.iService.RouteService;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,6 +29,7 @@ public class RouteController {
     private static final String CREATED_MESSAGE        = "Route created successfully";
     private static final String LIST_RETRIEVED_MESSAGE = "Routes retrieved successfully";
     private static final String RETRIEVED_MESSAGE      = "Route retrieved successfully";
+    private static final String SUMMARY_MESSAGE        = "Route summary retrieved successfully";
     private static final String UPDATED_MESSAGE        = "Route updated successfully";
     private static final String DEACTIVATED_MESSAGE    = "Route deactivated successfully";
     private static final String ACTIVATED_MESSAGE      = "Route activated successfully";
@@ -51,6 +53,11 @@ public class RouteController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.ok(routeService.getAllRoutes(search, pageable), LIST_RETRIEVED_MESSAGE));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<RouteSummaryResponse>> getSummary() {
+        return ResponseEntity.ok(ApiResponse.ok(routeService.getSummary(), SUMMARY_MESSAGE));
     }
 
     @GetMapping("/{id}")

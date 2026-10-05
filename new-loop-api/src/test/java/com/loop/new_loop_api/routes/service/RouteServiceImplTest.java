@@ -4,8 +4,10 @@ import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
 import com.loop.new_loop_api.common.service.ActivationService;
 import com.loop.new_loop_api.routes.dto.RouteResponse;
+import com.loop.new_loop_api.routes.dto.RouteSummaryResponse;
 import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.routes.mapper.RouteMapper;
+import com.loop.new_loop_api.routes.repository.RouteBranchCount;
 import com.loop.new_loop_api.routes.repository.RouteRepository;
 import com.loop.new_loop_api.users.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -76,5 +78,33 @@ class RouteServiceImplTest {
         routeService.getAllRoutes(rawSearch, PageRequest.of(0, 20));
 
         verify(routeRepository).searchRoutes(eq(null), any());
+    }
+
+    @Test
+    void getSummary_aggregatesCountsPerBranchAndOverall() {
+        var norte = UUID.randomUUID();
+        var sur   = UUID.randomUUID();
+        when(routeRepository.countByBranchAndActive()).thenReturn(List.of(
+                new RouteBranchCount(sur,   "Sur",   true,  4L),
+                new RouteBranchCount(norte, "Norte", true,  10L),
+                new RouteBranchCount(norte, "Norte", false, 2L)));
+
+        var summary = routeService.getSummary();
+
+        assertThat(summary.total()).isEqualTo(16);
+        assertThat(summary.active()).isEqualTo(14);
+        assertThat(summary.inactive()).isEqualTo(2);
+        assertThat(summary.byBranch()).containsExactly(
+                new RouteSummaryResponse.BranchSummary(norte, "Norte", 10, 2),
+                new RouteSummaryResponse.BranchSummary(sur,   "Sur",   4,  0));
+    }
+
+    @Test
+    void getSummary_returnsZerosWhenThereAreNoRoutes() {
+        when(routeRepository.countByBranchAndActive()).thenReturn(List.of());
+
+        var summary = routeService.getSummary();
+
+        assertThat(summary).isEqualTo(new RouteSummaryResponse(0, 0, 0, List.of()));
     }
 }
