@@ -1,5 +1,6 @@
 package com.loop.new_loop_api.common.exception;
 
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import com.loop.new_loop_api.common.metrics.ErrorMetrics;
 import com.loop.new_loop_api.common.metrics.MetricsTags;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -72,5 +73,17 @@ class GlobalExceptionHandlerTest {
                 .counter();
         assertThat(counter).isNotNull();
         assertThat(counter.count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void should_return409_when_optimisticLockFails() {
+        var request = new MockHttpServletRequest("POST", "/orders/1/start");
+        var ex = new ObjectOptimisticLockingFailureException("Order", "1");
+
+        var response = handler.handleOptimisticLock(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("The record was modified by another user. Reload it and try again.");
     }
 }

@@ -11,6 +11,7 @@ import com.loop.new_loop_api.orders.entity.OrderItem;
 import com.loop.new_loop_api.orders.entity.OrderStatus;
 import com.loop.new_loop_api.orders.entity.OrderableProduct;
 import com.loop.new_loop_api.orders.exception.InvalidOrderStatusException;
+import com.loop.new_loop_api.orders.exception.OrderModifiedConcurrentlyException;
 import com.loop.new_loop_api.orders.exception.OrderNotFoundException;
 import com.loop.new_loop_api.orders.exception.OrderQuantityNotAllowedException;
 import com.loop.new_loop_api.orders.exception.OrderableProductNotFoundException;
@@ -25,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -119,10 +121,19 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private OrderResponse saveAndAudit(Order order, String action) {
-        var saved    = orderRepository.save(order);
+        var saved    = saveAndFlush(order);
         var response = orderMapper.toResponse(saved);
         auditService.register(action, "Order", saved.getId(), null, response);
         return response;
+    }
+
+    /** Flushes so a concurrent start/complete is detected here (version check) and reported as a 409. */
+    private Order saveAndFlush(Order order) {
+        try {
+            return orderRepository.saveAndFlush(order);
+        } catch (ObjectOptimisticLockingFailureException ex) {
+            throw new OrderModifiedConcurrentlyException(order.getId());
+        }
     }
 
     private List<OrderItem> buildItems(List<CreateOrderItemRequest> requests, Order order) {

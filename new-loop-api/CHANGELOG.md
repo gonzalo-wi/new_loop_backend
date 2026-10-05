@@ -27,6 +27,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Salida de dispensers a Odoo: si al despachar algunos equipos no están disponibles en expedición, ahora se despachan igual los que sí lo están (antes Odoo rechazaba el lote completo y no salía ninguno). Los equipos no disponibles quedan registrados en el detalle del error. Si ninguno está disponible, el despacho se cierra como error definitivo y deja de reintentarse.
 
 ### Fixed
+- Pedidos: si dos pickers inician (o completan) el mismo pedido al mismo tiempo, solo uno lo logra; el otro recibe 409 ("el pedido fue tomado por otro usuario") en vez de pisar al primero.
 - Movimientos de dispenser y controles de stock: dos pedidos simultáneos (doble toque en la app o un reintento de red) ya no pueden crear dos registros activos para el mismo reparto, tipo y fecha; el segundo recibe 409 y no se envía nada a Aguas/Odoo. Lo mismo al editar un control y moverlo a una fecha que ya tiene otro control activo (antes se duplicaba).
 - Un usuario desactivado ya no puede seguir usando la API con un token emitido antes de la desactivación.
 - Endpoints de catálogo de Odoo (equipos disponibles y validación de series) y de Aguas (ubicaciones/estados): devolvían una respuesta corrupta (las propiedades internas del árbol JSON en vez del contenido), por lo que la app no veía ningún equipo/dato. Ahora devuelven el JSON real.

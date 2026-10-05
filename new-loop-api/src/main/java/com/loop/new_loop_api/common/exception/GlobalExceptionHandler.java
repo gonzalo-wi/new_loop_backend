@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
@@ -26,6 +27,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
+    private static final String CONCURRENT_MODIFICATION_MESSAGE = "The record was modified by another user. Reload it and try again.";
+
     private final ErrorMetrics errorMetrics;
 
     @ExceptionHandler(NotFoundException.class)
@@ -36,6 +39,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiError> handleConflict(ConflictException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), ex, request);
+    }
+
+    /** Fallback for versioned entities whose service doesn't translate the conflict into a domain exception. */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleOptimisticLock(ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, CONCURRENT_MODIFICATION_MESSAGE, ex, request);
     }
 
     @ExceptionHandler(ForbiddenException.class)
