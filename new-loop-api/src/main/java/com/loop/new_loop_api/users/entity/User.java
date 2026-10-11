@@ -36,7 +36,7 @@ public class User {
     @Column(name = "role", nullable = false)
     private Role role;
 
-    /** Scopes what this user sees for CONTROLADOR/PICKER; not required for ADMIN/SUPERVISOR. */
+    /** Scopes what this user sees for branch-scoped roles (see Role.isBranchScoped); not required for the rest. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id")
     private Branch branch;

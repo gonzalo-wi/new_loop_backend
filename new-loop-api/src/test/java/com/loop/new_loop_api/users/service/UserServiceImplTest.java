@@ -1,11 +1,15 @@
 package com.loop.new_loop_api.users.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.branches.repository.BranchRepository;
 import com.loop.new_loop_api.common.security.AuthenticatedUserCache;
+import com.loop.new_loop_api.users.dto.CreateUserRequest;
 import com.loop.new_loop_api.users.dto.UpdateUserRequest;
 import com.loop.new_loop_api.users.dto.UserResponse;
+import com.loop.new_loop_api.users.entity.Role;
 import com.loop.new_loop_api.users.entity.User;
+import com.loop.new_loop_api.users.exception.BranchRequiredForRoleException;
 import com.loop.new_loop_api.users.mapper.UserMapper;
 import com.loop.new_loop_api.users.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -23,12 +27,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -109,10 +116,54 @@ class UserServiceImplTest {
         verify(authenticatedUserCache).invalidate(user.getUsername());
     }
 
+    @Test
+    void createUser_rejectsLoaderWithoutBranch() {
+        var request = createRequest(Role.CARGADOR_DISPENSERS);
+
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(BranchRequiredForRoleException.class);
+    }
+
+    @Test
+    void createUser_acceptsLoaderWithBranch() {
+        var branch  = new Branch();
+        branch.setId(UUID.randomUUID());
+        var request = createRequest(Role.CARGADOR_DISPENSERS);
+        ReflectionTestUtils.setField(request, "branchId", branch.getId());
+        var user = new User();
+        when(branchRepository.findById(branch.getId())).thenReturn(Optional.of(branch));
+        when(userMapper.toEntity(eq(request), any(), eq(branch))).thenReturn(user);
+        when(userRepository.save(user)).thenReturn(user);
+        when(userMapper.toResponse(user)).thenReturn(UserResponse.builder().id(UUID.randomUUID()).build());
+
+        userService.createUser(request);
+
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void updateUser_rejectsLoaderWithoutBranch() {
+        var user = existingUser();
+        user.setRole(Role.CARGADOR_DISPENSERS);
+
+        assertThatThrownBy(() -> userService.updateUser(user.getId(), new UpdateUserRequest()))
+                .isInstanceOf(BranchRequiredForRoleException.class);
+    }
+
+    private CreateUserRequest createRequest(Role role) {
+        var request = new CreateUserRequest();
+        ReflectionTestUtils.setField(request, "name", "Juan Perez");
+        ReflectionTestUtils.setField(request, "username", "juan.perez");
+        ReflectionTestUtils.setField(request, "password", "password123");
+        ReflectionTestUtils.setField(request, "role", role);
+        return request;
+    }
+
     private User existingUser() {
         var user = new User();
         user.setId(UUID.randomUUID());
         user.setUsername("juan.perez");
+        user.setRole(Role.ADMIN);
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         return user;
     }

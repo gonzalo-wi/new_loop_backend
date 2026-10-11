@@ -123,9 +123,9 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new BranchNotFoundException(branchId));
     }
 
-    /** CONTROLADOR and PICKER only see their own branch's data, so they must have one assigned. */
+    /** Branch-scoped roles only see their own branch's data, so they must have one assigned. */
     private void validateBranchRequirement(Role role, Branch branch) {
-        if ((role == Role.CONTROLADOR || role == Role.PICKER) && branch == null) {
+        if (role.isBranchScoped() && branch == null) {
             throw new BranchRequiredForRoleException(role);
         }
     }

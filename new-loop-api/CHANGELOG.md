@@ -25,6 +25,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Observabilidad del backend: métricas de rendimiento, errores y eventos clave de negocio (controles enviados/rechazados/corregidos a Aguas, movimientos de dispenser, llamadas a integraciones externas) ahora se pueden monitorear en tiempo real desde Grafana, alimentado por Prometheus. El stack se levanta junto con la app vía `docker compose up`.
 
 ### Changed
+- El rol CARGADOR_DISPENSERS pasa a tener la misma regla de sucursal que CONTROLADOR y PICKER: es obligatorio asignarle una al crearlo o editarlo (si no, responde 400) y en pedidos y controles de stock solo ve los de su sucursal. Es porque en las plantas la misma persona alterna entre controlar, pickear y cargar. Los cargadores existentes sin sucursal siguen viendo todo hasta que se les asigne una.
 - Auditoría: el historial ahora se conserva 12 meses en lugar de 7 días (configurable con `AUDIT_RETENTION_DAYS`). Con el volumen actual son unos 50 MB por año.
 - Autenticación: el backend ya no consulta la tabla de usuarios en cada request; reutiliza los datos del usuario durante 2 minutos (configurable con `USER_CACHE_TTL`) y los refresca al editar, activar o desactivar al usuario.
 - Índices nuevos en controles de stock (fecha + tipo + estado, y reparto + tipo + fecha) y en pedidos (fecha de creación), para que el dashboard, el chequeo de controles duplicados y el listado de pedidos sigan siendo rápidos cuando crezca el volumen.

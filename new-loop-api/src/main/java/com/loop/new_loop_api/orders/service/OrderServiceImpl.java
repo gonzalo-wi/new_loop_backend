@@ -2,7 +2,6 @@ package com.loop.new_loop_api.orders.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
-import com.loop.new_loop_api.users.entity.Role;
 import com.loop.new_loop_api.orders.dto.CreateOrderItemRequest;
 import com.loop.new_loop_api.orders.dto.CreateOrderRequest;
 import com.loop.new_loop_api.orders.dto.OrderResponse;
@@ -69,10 +68,10 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.findAll(spec, pageable).map(orderMapper::toResponse);
     }
 
-    /** CONTROLADOR/PICKER only see their own branch: their branch always wins over any requested filter. */
+    /** Branch-scoped roles only see their own branch: their branch always wins over any requested filter. */
     private UUID scopeBranchId(UUID requestedBranchId) {
         return currentUserProvider.current()
-                .filter(user -> user.role() == Role.CONTROLADOR || user.role() == Role.PICKER)
+                .filter(user -> user.role().isBranchScoped())
                 .map(user -> user.branchId())
                 .orElse(requestedBranchId);
     }
