@@ -42,6 +42,7 @@ public class DispenserSerialHistoryServiceImpl implements DispenserSerialHistory
                 movement.getMovementDate(),
                 movement.getRegisteredByUsername(),
                 movement.getCreatedAt(),
+                movement.isBagged(serial),
                 delivery.excluded(),
                 delivery.exclusionReason(),
                 delivery.aguas(),

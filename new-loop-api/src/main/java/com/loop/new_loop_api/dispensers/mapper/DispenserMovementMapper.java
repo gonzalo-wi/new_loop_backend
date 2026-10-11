@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.List;
 
 @Component
 public class DispenserMovementMapper {
@@ -21,6 +22,7 @@ public class DispenserMovementMapper {
                 .stateId(request.getStateId())
                 .movementDate(movementDate)
                 .serials(new ArrayList<>(request.getSerials()))
+                .baggedSerials(distinct(request.getBaggedSerials()))
                 .build();
     }
 
@@ -39,6 +41,7 @@ public class DispenserMovementMapper {
                 .exclusionReason(movement.getExcludedSerials().isEmpty()
                         ? null : SerialExclusionReason.forType(movement.getType()))
                 .odooSkippedSerials(new ArrayList<>(movement.getOdooSkippedSerials()))
+                .baggedSerials(new ArrayList<>(movement.getBaggedSerials()))
                 .aguasMovementId(movement.getAguasMovementId())
                 .odooStatus(movement.getOdooStatus())
                 .odooPickingId(movement.getOdooPickingId())
@@ -52,5 +55,15 @@ public class DispenserMovementMapper {
                 .createdAt(movement.getCreatedAt())
                 .updatedAt(movement.getUpdatedAt())
                 .build();
+    }
+
+    // Case-insensitive, like every other serial match on bagged serials.
+    private static List<String> distinct(List<String> serials) {
+        var result = new ArrayList<String>();
+        if (serials == null) return result;
+        serials.stream()
+                .filter(serial -> result.stream().noneMatch(serial::equalsIgnoreCase))
+                .forEach(result::add);
+        return result;
     }
 }

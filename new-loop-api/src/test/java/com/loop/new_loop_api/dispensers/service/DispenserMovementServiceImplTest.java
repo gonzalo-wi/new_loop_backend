@@ -10,6 +10,7 @@ import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.event.DispenserMovementReadyForAguasEvent;
 import com.loop.new_loop_api.dispensers.event.DispenserMovementUnregisteredSerialsExcludedEvent;
 import com.loop.new_loop_api.dispensers.exception.DuplicateDispenserMovementException;
+import com.loop.new_loop_api.dispensers.exception.InvalidBaggedSerialsException;
 import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
@@ -299,6 +300,75 @@ class DispenserMovementServiceImplTest {
 
         assertThatThrownBy(() -> dispenserMovementService.createMovement(loadRequest(List.of("SN-1"))))
                 .isSameAs(other);
+    }
+
+    @Test
+    void shouldRejectBaggedSerials_when_movementIsALoad() {
+        var request = loadRequest(List.of("SN-1"));
+        request.setBaggedSerials(List.of("SN-1"));
+
+        assertThatThrownBy(() -> dispenserMovementService.createMovement(request))
+                .isInstanceOf(InvalidBaggedSerialsException.class);
+        verify(dispenserMovementRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void shouldRejectBaggedSerials_when_aBaggedSerialWasNotScanned() {
+        var request = unloadRequest(List.of("SN-1"));
+        request.setBaggedSerials(List.of("SN-2"));
+
+        assertThatThrownBy(() -> dispenserMovementService.createMovement(request))
+                .isInstanceOf(InvalidBaggedSerialsException.class)
+                .hasMessageContaining("SN-2");
+        verify(dispenserMovementRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void shouldKeepBaggedSerialsInWhatIsSent_when_unloadHasBaggedSerials() {
+        var request = unloadRequest(List.of("SN-1", "SN-2"));
+        request.setBaggedSerials(List.of("sn-2"));
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.UNLOAD)
+                .routeCode("1")
+                .serials(new java.util.ArrayList<>(List.of("SN-1", "SN-2")))
+                .baggedSerials(new java.util.ArrayList<>(List.of("sn-2")))
+                .build();
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(false);
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(unregisteredDispenserService.findUnregisteredSerials(any())).thenReturn(Set.of());
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(request);
+
+        assertThat(movement.serialsToSend()).containsExactly("SN-1", "SN-2");
+        verify(eventPublisher).publishEvent(any(DispenserMovementReadyForAguasEvent.class));
+    }
+
+    @Test
+    void shouldNotTouchAguas_when_updateHasInvalidBaggedSerials() {
+        var request = unloadRequest(List.of("SN-1"));
+        request.setBaggedSerials(List.of("SN-9"));
+
+        assertThatThrownBy(() -> dispenserMovementService.updateMovement(UUID.randomUUID(), request))
+                .isInstanceOf(InvalidBaggedSerialsException.class);
+        verify(dispenserMovementRepository, never()).findById(any());
+        verify(aguasEquipmentService, never()).deleteInAguas(any());
+    }
+
+    @Test
+    void shouldAcceptALoad_when_baggedSerialsIsEmpty() {
+        stubLoadMovementUpToSave();
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+        var request = loadRequest(List.of("SN-1"));
+        request.setBaggedSerials(List.of());
+
+        dispenserMovementService.createMovement(request);
+
+        verify(dispenserMovementRepository).saveAndFlush(any());
     }
 
     private void stubLoadMovementUpToSave() {

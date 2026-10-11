@@ -80,4 +80,25 @@ class DispenserSerialHistoryServiceImplTest {
         assertThat(history.entries()).hasSize(DispenserSerialHistoryServiceImpl.MAX_ENTRIES);
         assertThat(history.truncated()).isTrue();
     }
+
+    @Test
+    void shouldFlagTheEntryAsBaggedIgnoringCase_when_theSerialCameBackBagged() {
+        var movement = movement(DispenserMovementType.UNLOAD);
+        movement.getBaggedSerials().add("sn-1");
+        when(dispenserMovementRepository.findBySerial(eq("SN-1"), any(Pageable.class))).thenReturn(List.of(movement));
+
+        var entry = service.getHistory("SN-1").entries().getFirst();
+
+        assertThat(entry.bagged()).isTrue();
+    }
+
+    @Test
+    void shouldNotFlagTheEntryAsBagged_when_theSerialWasNotBagged() {
+        var movement = movement(DispenserMovementType.UNLOAD);
+        when(dispenserMovementRepository.findBySerial(eq("SN-1"), any(Pageable.class))).thenReturn(List.of(movement));
+
+        var entry = service.getHistory("SN-1").entries().getFirst();
+
+        assertThat(entry.bagged()).isFalse();
+    }
 }

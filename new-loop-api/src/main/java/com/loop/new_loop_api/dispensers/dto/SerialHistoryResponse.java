@@ -20,6 +20,7 @@ public record SerialHistoryResponse(String serial, List<Entry> entries, boolean 
             LocalDate               movementDate,
             String                  registeredByUsername,
             LocalDateTime           createdAt,
+            boolean                 bagged,
             boolean                 excluded,
             SerialExclusionReason   exclusionReason,
             SerialDeliveryStatus    aguas,

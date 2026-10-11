@@ -35,4 +35,7 @@ public class CreateDispenserMovementRequest {
 
     @NotEmpty(message = "At least one dispenser serial is required")
     private List<@NotBlank String> serials;
+
+    // Optional, UNLOAD only: subset of serials that came back still bagged. Stored internally, never sent out.
+    private List<@NotBlank String> baggedSerials;
 }

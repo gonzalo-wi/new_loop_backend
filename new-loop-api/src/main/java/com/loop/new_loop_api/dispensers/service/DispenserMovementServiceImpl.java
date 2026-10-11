@@ -14,6 +14,7 @@ import com.loop.new_loop_api.dispensers.exception.AguasDeleteFailedException;
 import com.loop.new_loop_api.dispensers.exception.DispenserMovementAlreadyCancelledException;
 import com.loop.new_loop_api.dispensers.exception.DispenserMovementNotFoundException;
 import com.loop.new_loop_api.dispensers.exception.DuplicateDispenserMovementException;
+import com.loop.new_loop_api.dispensers.exception.InvalidBaggedSerialsException;
 import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
@@ -65,6 +66,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     @Transactional
     public DispenserMovementResponse createMovement(CreateDispenserMovementRequest request) {
         var date = request.getMovementDate() != null ? request.getMovementDate() : LocalDate.now();
+        validateBaggedSerials(request);
         validateNoDuplicate(request, date);
         var movement = buildMovement(request, date);
         excludeUnregisteredSerials(movement);
@@ -130,6 +132,8 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     @Override
     @Transactional
     public DispenserMovementResponse updateMovement(UUID id, CreateDispenserMovementRequest request) {
+        // Before cancelling: the cancel deletes the movement in Aguas, which a later rollback cannot undo.
+        validateBaggedSerials(request);
         cancelMovement(id);
         return createMovement(request);
     }
@@ -155,6 +159,17 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
             }
             throw ex;
         }
+    }
+
+    private void validateBaggedSerials(CreateDispenserMovementRequest request) {
+        var bagged = request.getBaggedSerials();
+        if (bagged == null || bagged.isEmpty()) return;
+        if (request.getType() != DispenserMovementType.UNLOAD) throw InvalidBaggedSerialsException.onlyForUnload();
+
+        var notScanned = bagged.stream()
+                .filter(serial -> request.getSerials().stream().noneMatch(serial::equalsIgnoreCase))
+                .toList();
+        if (!notScanned.isEmpty()) throw InvalidBaggedSerialsException.notScanned(notScanned);
     }
 
     private void validateNoDuplicate(CreateDispenserMovementRequest request, LocalDate date) {

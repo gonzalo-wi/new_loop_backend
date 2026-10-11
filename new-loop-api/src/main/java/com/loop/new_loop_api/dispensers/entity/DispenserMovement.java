@@ -74,6 +74,14 @@ public class DispenserMovement {
     @Builder.Default
     private List<String> odooSkippedSerials = new ArrayList<>();
 
+    // UNLOAD serials that came back still bagged (undelivered new dispenser). Internal only: not sent out.
+    @ElementCollection
+    @BatchSize(size = COLLECTION_BATCH_SIZE)
+    @CollectionTable(name = "dispenser_movement_bagged_serials", joinColumns = @JoinColumn(name = "movement_id"))
+    @Column(name = "serial", length = 100)
+    @Builder.Default
+    private List<String> baggedSerials = new ArrayList<>();
+
     @Column(name = "aguas_movement_id", length = 50)
     private String aguasMovementId;
 
@@ -124,5 +132,9 @@ public class DispenserMovement {
         if (serials == null) return List.of();
         if (excludedSerials == null || excludedSerials.isEmpty()) return List.copyOf(serials);
         return serials.stream().filter(serial -> !excludedSerials.contains(serial)).toList();
+    }
+
+    public boolean isBagged(String serial) {
+        return baggedSerials != null && baggedSerials.stream().anyMatch(serial::equalsIgnoreCase);
     }
 }
