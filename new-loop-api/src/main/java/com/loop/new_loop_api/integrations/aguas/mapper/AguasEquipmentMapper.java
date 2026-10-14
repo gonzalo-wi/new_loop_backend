@@ -2,6 +2,7 @@ package com.loop.new_loop_api.integrations.aguas.mapper;
 
 import com.loop.new_loop_api.dispensers.entity.DispenserMovement;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
+import com.loop.new_loop_api.integrations.aguas.dto.AguasDeleteEquipmentRequest;
 import com.loop.new_loop_api.integrations.aguas.dto.AguasEquipmentMovementRequest;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +30,10 @@ public class AguasEquipmentMapper {
                 .esRecarga(isLoad ? LOAD_ES_RECARGA : UNLOAD_ES_RECARGA)
                 .accion(isLoad ? LOAD_ACCION : null)
                 .build();
+    }
+
+    public AguasDeleteEquipmentRequest toDeleteRequest(DispenserMovement movement) {
+        return new AguasDeleteEquipmentRequest(movement.getAguasMovementId(), resolveUsuario(movement));
     }
 
     /** Aguas exige usuario no nulo; si el movimiento se registró sin sesión, se usa el técnico. */

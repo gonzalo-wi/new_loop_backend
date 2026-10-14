@@ -62,4 +62,21 @@ class AguasEquipmentMapperTest {
 
         assertThat(request.getUsuario()).isEqualTo("Gonzalo Wiñazki");
     }
+
+    @Test
+    void should_sendAguasIdAndRegisteredUsername_when_deleting() {
+        var request = mapper.toDeleteRequest(
+                baseMovement().aguasMovementId("1234").registeredByUsername("gwinazki").build());
+
+        assertThat(request.getIdMovimiento()).isEqualTo("1234");
+        assertThat(request.getUsuario()).isEqualTo("gwinazki");
+    }
+
+    @Test
+    void should_fallBackToTechnician_when_deletingWithoutUsername() {
+        var request = mapper.toDeleteRequest(
+                baseMovement().aguasMovementId("1234").registeredByUsername(null).build());
+
+        assertThat(request.getUsuario()).isEqualTo("Gonzalo Wiñazki");
+    }
 }

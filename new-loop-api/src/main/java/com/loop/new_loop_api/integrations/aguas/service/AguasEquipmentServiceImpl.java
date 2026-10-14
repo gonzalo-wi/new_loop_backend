@@ -9,7 +9,6 @@ import com.loop.new_loop_api.dispensers.event.DispenserMovementSentToAguasEvent;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.integrations.aguas.client.AguasEquipmentClient;
-import com.loop.new_loop_api.integrations.aguas.dto.AguasDeleteEquipmentRequest;
 import com.loop.new_loop_api.integrations.aguas.mapper.AguasEquipmentMapper;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationLog;
@@ -130,7 +129,7 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
                 .retryCount(0)
                 .build();
 
-        var request = new AguasDeleteEquipmentRequest(movement.getAguasMovementId(), movement.getRegisteredByUsername());
+        var request = aguasEquipmentMapper.toDeleteRequest(movement);
         integrationLog.setRequestPayload(serialize(request));
 
         try (Response response = aguasEquipmentClient.deleteMovement(request)) {
