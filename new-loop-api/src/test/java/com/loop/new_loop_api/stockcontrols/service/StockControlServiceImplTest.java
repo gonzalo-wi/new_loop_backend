@@ -113,10 +113,11 @@ class StockControlServiceImplTest {
         return request;
     }
 
-    // 1. Rejects when the current user is not SUPERVISOR
-    @Test
-    void should_throwCorrectionNotAllowedException_when_userIsNotSupervisor() {
-        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(Role.CONTROLADOR)));
+    // 1. Rejects when the current user is neither SUPERVISOR nor ADMIN
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"SUPERVISOR", "ADMIN"}, mode = EnumSource.Mode.EXCLUDE)
+    void should_throwCorrectionNotAllowedException_when_userIsNotSupervisorOrAdmin(Role role) {
+        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(role)));
 
         assertThatThrownBy(() -> stockControlService.correctControl(controlId, correctionRequest()))
                 .isInstanceOf(CorrectionNotAllowedException.class);
@@ -188,14 +189,24 @@ class StockControlServiceImplTest {
         assertHappyPath(entryControl(ControlStatus.AGUAS_ERROR));
     }
 
+    // 4c. Admins can correct too
+    @Test
+    void should_correctControlAndPublishEvent_when_adminCorrectsControlSentToAguas() {
+        assertHappyPath(entryControl(ControlStatus.SENT_TO_AGUAS), nonSupervisor(Role.ADMIN));
+    }
+
     private void assertHappyPath(StockControl existingControl) {
+        assertHappyPath(existingControl, supervisor());
+    }
+
+    private void assertHappyPath(StockControl existingControl, AuthenticatedUser user) {
         var request = correctionRequest();
         var oldValueResponse = StockControlResponse.builder().id(controlId).observations("old obs").build();
         var newValueResponse = StockControlResponse.builder().id(controlId).observations("new obs").build();
         var newItem = StockControlItem.builder().id(UUID.randomUUID()).build();
 
         when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(existingControl));
-        when(currentUserProvider.current()).thenReturn(Optional.of(supervisor()));
+        when(currentUserProvider.current()).thenReturn(Optional.of(user));
         when(stockControlMapper.toResponse(existingControl)).thenReturn(oldValueResponse, newValueResponse);
         when(productRepository.findById(any())).thenReturn(Optional.of(
                 com.loop.new_loop_api.products.entity.Product.builder()

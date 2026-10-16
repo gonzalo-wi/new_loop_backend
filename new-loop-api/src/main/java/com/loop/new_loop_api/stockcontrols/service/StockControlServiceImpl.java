@@ -65,6 +65,8 @@ public class StockControlServiceImpl implements StockControlService {
     private static final Set<ControlStatus> CORRECTABLE_STATUSES =
             Set.of(ControlStatus.SENT_TO_AGUAS, ControlStatus.AGUAS_ERROR);
 
+    private static final Set<Role> CORRECTION_ROLES = Set.of(Role.SUPERVISOR, Role.ADMIN);
+
     private static final String CORRECT_STOCK_CONTROL_ACTION = "CORRECT_STOCK_CONTROL";
     // Partial unique index from V30; must match the migration's name.
     private static final String ACTIVE_CONTROL_UNIQUE_INDEX  = "uq_stock_controls_type_route_date_active";
@@ -164,7 +166,7 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional
     public StockControlResponse correctControl(UUID id, CorrectStockControlRequest request) {
-        assertCurrentUserIsSupervisor();
+        assertCurrentUserCanCorrect();
         var control = findControlById(id);
         assertControlIsCorrectable(control);
 
@@ -226,11 +228,11 @@ public class StockControlServiceImpl implements StockControlService {
         return remitoPdfGenerator.generate(control);
     }
 
-    private void assertCurrentUserIsSupervisor() {
-        var isSupervisor = currentUserProvider.current()
-                .map(user -> user.role() == Role.SUPERVISOR)
+    private void assertCurrentUserCanCorrect() {
+        var canCorrect = currentUserProvider.current()
+                .map(user -> CORRECTION_ROLES.contains(user.role()))
                 .orElse(false);
-        if (!isSupervisor) {
+        if (!canCorrect) {
             throw new CorrectionNotAllowedException();
         }
     }

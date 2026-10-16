@@ -26,7 +26,7 @@ public class AguasControlListener {
     }
 
     /**
-     * Runs after a SUPERVISOR correction commits: re-sends the control to Aguas so the
+     * Runs after a SUPERVISOR or ADMIN correction commits: re-sends the control to Aguas so the
      * corrected data overwrites the previous remito.
      */
     @Async
