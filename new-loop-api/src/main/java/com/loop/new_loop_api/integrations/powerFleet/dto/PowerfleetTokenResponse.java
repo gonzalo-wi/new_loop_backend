@@ -8,6 +8,17 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class PowerfleetTokenResponse {
-    private String token;
-    private String expire;
+    private String  token;
+    private String  expire;
+    private Boolean isSucceded;
+    private Error   error;
+
+    /** Powerfleet answers a rejected login with 200/400 and {"isSucceded":false,"error":{...}}. */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class Error {
+        private Integer code;
+        private String  message;
+    }
 }

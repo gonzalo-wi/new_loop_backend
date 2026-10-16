@@ -8,7 +8,9 @@ import com.loop.new_loop_api.fleet.service.iService.FleetLocationService;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.powerFleet.client.PowerfleetClient;
+import com.loop.new_loop_api.integrations.powerFleet.dto.PowerfleetFleetViewResponse;
 import com.loop.new_loop_api.integrations.powerFleet.dto.PowerfleetTokenRequest;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +42,7 @@ public class FleetLocationServiceImpl implements FleetLocationService {
     @Override
     public TruckLocationResponse getLocation(String licensePlate) {
         try {
-            var fleetView = powerfleetClient.getFleetView("Bearer " + validToken());
+            var fleetView = fetchFleetView();
             var vehicle = fleetView.getData() == null ? null : fleetView.getData().stream()
                     .filter(v -> licensePlate.equalsIgnoreCase(v.getLicensePlate()))
                     .findFirst()
@@ -57,8 +59,28 @@ public class FleetLocationServiceImpl implements FleetLocationService {
             throw e;
         } catch (Exception e) {
             integrationCallMetrics.recordError(IntegrationName.POWERFLEET);
+            log.error("Powerfleet location lookup failed for plate {}", licensePlate, e);
             throw new FleetProviderException("Could not retrieve truck location from Powerfleet", e);
         }
+    }
+
+    /**
+     * Powerfleet can revoke a token before its declared expiry; a 401 then means
+     * the cached one is dead, so drop it and try once more with a fresh login.
+     */
+    private PowerfleetFleetViewResponse fetchFleetView() {
+        try {
+            return powerfleetClient.getFleetView("Bearer " + validToken());
+        } catch (FeignException.Unauthorized e) {
+            log.warn("Powerfleet rejected the cached token, requesting a new one");
+            invalidateToken();
+            return powerfleetClient.getFleetView("Bearer " + validToken());
+        }
+    }
+
+    private synchronized void invalidateToken() {
+        cachedToken = null;
+        tokenExpiry = null;
     }
 
     /** Token cache: reused until close to expiry, refreshed under lock otherwise. */
@@ -75,7 +97,9 @@ public class FleetLocationServiceImpl implements FleetLocationService {
                 .build();
         var response = powerfleetClient.getToken(request);
         if (response == null || response.getToken() == null) {
-            throw new FleetProviderException("Powerfleet did not return a valid token", null);
+            var reason = response != null && response.getError() != null ? response.getError().getMessage() : null;
+            throw new FleetProviderException("Powerfleet did not return a valid token"
+                    + (reason != null ? ": " + reason : ""), null);
         }
         cachedToken = response.getToken();
         tokenExpiry = OffsetDateTime.parse(response.getExpire());
