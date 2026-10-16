@@ -8,6 +8,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
 ### Added
+- Listado de controles de stock: se puede filtrar por fecha de carga (`createdFrom`/`createdTo`, días completos), además de por la fecha del control. El panel lo usa para mostrar lo cargado hoy, porque una salida queda fechada para el próximo reparto.
 - Dispensers embolsados en descargas (UNLOAD): al registrar una descarga se pueden marcar las series que volvieron embolsadas (`baggedSerials`), es decir, dispensers nuevos que no se pudieron entregar, para que en planta no los manden a reparación. El dato queda solo en Loop: igual se envían a Aguas y a Odoo como reparación, como hasta ahora. Se ve en la respuesta del movimiento y en la trazabilidad por serie (`bagged`). Solo vale en descargas y para series escaneadas en ese movimiento; si no, responde 400. El campo es opcional, así que los clientes actuales siguen funcionando.
 - Trazabilidad de dispensers por número de serie (`GET /dispenser-movements/serials/{serial}/history`): devuelve todas las cargas y descargas en las que se escaneó la serie, de la más nueva a la más vieja (hasta 100), con reparto, técnico, quién la registró y, para esa serie puntual, si llegó a Aguas y a Odoo (enviada, pendiente, con error, excluida, dejada afuera por Odoo o anulada) y el picking de Odoo. La búsqueda no distingue mayúsculas.
 - Movimientos de dispenser: la respuesta indica por qué se excluyeron series (`exclusionReason`: no registradas en jMobile en las descargas, no disponibles en Odoo en las cargas) y qué series de una carga Odoo dejó afuera del despacho por no estar en expedición (`odooSkippedSerials`). Antes ese dato solo quedaba dentro del texto del error. Los despachos anteriores a este cambio no tienen el dato.
@@ -25,6 +26,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Observabilidad del backend: métricas de rendimiento, errores y eventos clave de negocio (controles enviados/rechazados/corregidos a Aguas, movimientos de dispenser, llamadas a integraciones externas) ahora se pueden monitorear en tiempo real desde Grafana, alimentado por Prometheus. El stack se levanta junto con la app vía `docker compose up`.
 
 ### Changed
+- El remito de salida se genera en A5, que es como lo imprimen: un control típico (hasta unos 16 productos) entra completo en una hoja con las firmas. Si tiene más, sigue en otra hoja con el encabezado de la tabla repetido y las firmas siempre juntas.
+- La corrección de controles de entrada ya enviados a Aguas también la puede hacer el rol ADMIN, no solo SUPERVISOR. El motivo sigue siendo obligatorio y se reenvía a Aguas igual que antes.
 - El rol CARGADOR_DISPENSERS pasa a tener la misma regla de sucursal que CONTROLADOR y PICKER: es obligatorio asignarle una al crearlo o editarlo (si no, responde 400) y en pedidos y controles de stock solo ve los de su sucursal. Es porque en las plantas la misma persona alterna entre controlar, pickear y cargar. Los cargadores existentes sin sucursal siguen viendo todo hasta que se les asigne una.
 - Auditoría: el historial ahora se conserva 12 meses en lugar de 7 días (configurable con `AUDIT_RETENTION_DAYS`). Con el volumen actual son unos 50 MB por año.
 - Autenticación: el backend ya no consulta la tabla de usuarios en cada request; reutiliza los datos del usuario durante 2 minutos (configurable con `USER_CACHE_TTL`) y los refresca al editar, activar o desactivar al usuario.
@@ -36,6 +39,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Salida de dispensers a Odoo: si al despachar algunos equipos no están disponibles en expedición, ahora se despachan igual los que sí lo están (antes Odoo rechazaba el lote completo y no salía ninguno). Los equipos no disponibles quedan registrados en el detalle del error. Si ninguno está disponible, el despacho se cierra como error definitivo y deja de reintentarse.
 
 ### Fixed
+- Ubicación del camión (Powerfleet): si Powerfleet invalida el token antes de tiempo, el backend pide uno nuevo y reintenta en vez de fallar hasta que venza. Cada error queda en el log con la patente y el motivo real (por ejemplo, usuario o clave inválidos), y un login rechazado incluye el mensaje de Powerfleet.
 - Cancelar o corregir un movimiento de dispenser registrado sin usuario de sesión fallaba con 409: Aguas rechazaba el borrado por falta de usuario. Ahora el borrado manda el técnico como usuario, igual que el alta.
 - Un parámetro de consulta con un valor inválido (por ejemplo un tipo, estado u origen inexistente, o un id mal formado) ahora responde 400 indicando el parámetro, en lugar de un error 500.
 - Pedidos: si dos pickers inician (o completan) el mismo pedido al mismo tiempo, solo uno lo logra; el otro recibe 409 ("el pedido fue tomado por otro usuario") en vez de pisar al primero.
