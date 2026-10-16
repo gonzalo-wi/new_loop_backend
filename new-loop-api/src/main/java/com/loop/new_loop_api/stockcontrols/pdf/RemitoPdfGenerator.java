@@ -27,26 +27,27 @@ public class RemitoPdfGenerator {
     private static final Color BORDER_COLOR = new Color(210, 214, 220);
     private static final Color STRIPE_COLOR = new Color(248, 249, 250);
 
-    private static final Font COMPANY_NAME_FONT = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14, Color.BLACK);
-    private static final Font COMPANY_INFO_FONT = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.DARK_GRAY);
-    private static final Font TITLE_FONT         = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, BRAND_COLOR);
-    private static final Font COMPROBANTE_FONT   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.DARK_GRAY);
-    private static final Font DISCLAIMER_FONT    = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 7, Color.GRAY);
-    private static final Font LEGAL_LABEL_FONT   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.DARK_GRAY);
-    private static final Font LEGAL_VALUE_FONT   = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.BLACK);
-    private static final Font BADGE_LABEL_FONT  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.WHITE);
-    private static final Font BADGE_VALUE_FONT  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 17, Color.WHITE);
-    private static final Font LABEL_FONT        = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Color.DARK_GRAY);
-    private static final Font VALUE_FONT        = FontFactory.getFont(FontFactory.HELVETICA, 10, Color.BLACK);
-    private static final Font SECTION_FONT      = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BRAND_COLOR);
-    private static final Font TABLE_HEADER_FONT = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Color.WHITE);
-    private static final Font TABLE_CELL_FONT   = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.BLACK);
-    private static final Font EMPTY_FONT        = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 9, Color.GRAY);
-    private static final Font SIGNATURE_FONT    = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.DARK_GRAY);
-    private static final Font FOOTER_FONT       = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 7, Color.GRAY);
+    private static final Font COMPANY_NAME_FONT = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, Color.BLACK);
+    private static final Font COMPANY_INFO_FONT = FontFactory.getFont(FontFactory.HELVETICA, 7, Color.DARK_GRAY);
+    private static final Font TITLE_FONT         = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BRAND_COLOR);
+    private static final Font COMPROBANTE_FONT   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 7, Color.DARK_GRAY);
+    private static final Font DISCLAIMER_FONT    = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 6, Color.GRAY);
+    private static final Font LEGAL_LABEL_FONT   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 7, Color.DARK_GRAY);
+    private static final Font LEGAL_VALUE_FONT   = FontFactory.getFont(FontFactory.HELVETICA, 7, Color.BLACK);
+    private static final Font BADGE_LABEL_FONT  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 7, Color.WHITE);
+    private static final Font BADGE_VALUE_FONT  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, Color.WHITE);
+    private static final Font LABEL_FONT        = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.DARK_GRAY);
+    private static final Font VALUE_FONT        = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.BLACK);
+    private static final Font SECTION_FONT      = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, BRAND_COLOR);
+    private static final Font TABLE_HEADER_FONT = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.WHITE);
+    private static final Font TABLE_CELL_FONT   = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.BLACK);
+    private static final Font EMPTY_FONT        = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8, Color.GRAY);
+    private static final Font SIGNATURE_FONT    = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.DARK_GRAY);
+    private static final Font FOOTER_FONT       = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 6, Color.GRAY);
 
+    /** Drivers print the remito on A5, so the layout is sized for it: a typical load must fit on one sheet. */
     public byte[] generate(StockControl control) {
-        var document = new Document(PageSize.A4, 40, 40, 50, 40);
+        var document = new Document(PageSize.A5, 24, 24, 24, 20);
         var output   = new ByteArrayOutputStream();
         try {
             PdfWriter.getInstance(document, output);
@@ -54,21 +55,21 @@ public class RemitoPdfGenerator {
 
             var branch = control.getBranch();
             document.add(companyHeader(branch));
-            document.add(spacer(8));
+            document.add(spacer(4));
             document.add(legalInfoTable(branch));
-            document.add(spacer(16));
+            document.add(spacer(6));
             document.add(remitoBadge(control));
-            document.add(spacer(18));
+            document.add(spacer(8));
             document.add(sectionTitle("Datos del control"));
-            document.add(spacer(6));
+            document.add(spacer(3));
             document.add(infoTable(control));
-            document.add(spacer(20));
+            document.add(spacer(8));
             document.add(sectionTitle("Productos cargados"));
-            document.add(spacer(6));
+            document.add(spacer(3));
             document.add(itemsTable(control));
-            document.add(spacer(30));
+            document.add(spacer(10));
             document.add(signatureSection());
-            document.add(spacer(16));
+            document.add(spacer(6));
             document.add(footer());
 
             document.close();
@@ -144,7 +145,7 @@ public class RemitoPdfGenerator {
     private void addLegalCell(PdfPTable table, String label, String value) {
         var cell = new PdfPCell();
         cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(3);
+        cell.setPadding(1);
 
         var paragraph = new Paragraph();
         paragraph.add(new Chunk(label + ": ", LEGAL_LABEL_FONT));
@@ -167,7 +168,7 @@ public class RemitoPdfGenerator {
     private PdfPCell badgeCell(String label, String value) {
         var cell = new PdfPCell();
         cell.setBackgroundColor(BRAND_COLOR);
-        cell.setPadding(12);
+        cell.setPadding(5);
         cell.setBorder(Rectangle.NO_BORDER);
         cell.setHorizontalAlignment(Element.ALIGN_CENTER);
 
@@ -175,7 +176,7 @@ public class RemitoPdfGenerator {
         labelParagraph.setAlignment(Element.ALIGN_CENTER);
         var valueParagraph = new Paragraph(value != null ? value : "-", BADGE_VALUE_FONT);
         valueParagraph.setAlignment(Element.ALIGN_CENTER);
-        valueParagraph.setSpacingBefore(2);
+        valueParagraph.setSpacingBefore(1);
 
         cell.addElement(labelParagraph);
         cell.addElement(valueParagraph);
@@ -203,12 +204,12 @@ public class RemitoPdfGenerator {
         var labelCell = new PdfPCell(new Phrase(label, LABEL_FONT));
         labelCell.setBackgroundColor(LABEL_BG);
         labelCell.setBorderColor(BORDER_COLOR);
-        labelCell.setPadding(6);
+        labelCell.setPadding(3);
         table.addCell(labelCell);
 
         var valueCell = new PdfPCell(new Phrase(value != null ? value : "-", VALUE_FONT));
         valueCell.setBorderColor(BORDER_COLOR);
-        valueCell.setPadding(6);
+        valueCell.setPadding(3);
         table.addCell(valueCell);
     }
 
@@ -229,6 +230,8 @@ public class RemitoPdfGenerator {
         var table = new PdfPTable(3);
         table.setWidthPercentage(100);
         setWidths(table, 1.3f, 3.2f, 1f);
+        // Long loads spill onto extra sheets; repeating the header keeps each one readable.
+        table.setHeaderRows(1);
 
         addHeaderCell(table, "Código", Element.ALIGN_LEFT);
         addHeaderCell(table, "Producto", Element.ALIGN_LEFT);
@@ -250,7 +253,7 @@ public class RemitoPdfGenerator {
         cell.setBackgroundColor(BRAND_COLOR);
         cell.setBorderColor(BRAND_COLOR);
         cell.setHorizontalAlignment(alignment);
-        cell.setPadding(6);
+        cell.setPadding(3);
         table.addCell(cell);
     }
 
@@ -259,7 +262,7 @@ public class RemitoPdfGenerator {
         cell.setBackgroundColor(background);
         cell.setBorderColor(BORDER_COLOR);
         cell.setHorizontalAlignment(alignment);
-        cell.setPadding(6);
+        cell.setPadding(3);
         table.addCell(cell);
     }
 
@@ -268,6 +271,8 @@ public class RemitoPdfGenerator {
         var table = new PdfPTable(2);
         table.setWidthPercentage(100);
         setWidths(table, 1f, 1f);
+        // Never split the lines from their labels across sheets.
+        table.setKeepTogether(true);
 
         table.addCell(signatureLineCell());
         table.addCell(signatureLineCell());
@@ -280,7 +285,7 @@ public class RemitoPdfGenerator {
         var cell = new PdfPCell(new Phrase(" "));
         cell.setBorder(Rectangle.BOTTOM);
         cell.setBorderColor(Color.BLACK);
-        cell.setFixedHeight(30);
+        cell.setFixedHeight(24);
         return cell;
     }
 
@@ -288,7 +293,7 @@ public class RemitoPdfGenerator {
         var cell = new PdfPCell(new Phrase(label, SIGNATURE_FONT));
         cell.setBorder(Rectangle.NO_BORDER);
         cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell.setPaddingTop(4);
+        cell.setPaddingTop(2);
         return cell;
     }
 
