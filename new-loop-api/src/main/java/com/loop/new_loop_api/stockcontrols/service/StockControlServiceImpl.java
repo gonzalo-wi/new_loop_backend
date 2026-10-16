@@ -111,10 +111,10 @@ public class StockControlServiceImpl implements StockControlService {
     @Transactional(readOnly = true)
     public Page<StockControlResponse> getAllControls(
             ControlType type, ControlStatus status, UUID routeId, UUID controllerId, UUID branchId,
-            LocalDate from, LocalDate to, Pageable pageable) {
+            LocalDate from, LocalDate to, LocalDate createdFrom, LocalDate createdTo, Pageable pageable) {
         var scopedBranchId = scopeBranchId(branchId);
         return stockControlRepository
-                .findAll(withFilters(type, status, routeId, controllerId, scopedBranchId, from, to), pageable)
+                .findAll(withFilters(type, status, routeId, controllerId, scopedBranchId, from, to, createdFrom, createdTo), pageable)
                 .map(stockControlMapper::toResponse);
     }
 

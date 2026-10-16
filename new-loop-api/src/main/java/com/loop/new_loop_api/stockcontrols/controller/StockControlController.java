@@ -57,8 +57,10 @@ public class StockControlController {
             @RequestParam(required = false) UUID branchId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        var page = stockControlService.getAllControls(type, status, routeId, controllerId, branchId, from, to, pageable);
+        var page = stockControlService.getAllControls(type, status, routeId, controllerId, branchId, from, to, createdFrom, createdTo, pageable);
         return ResponseEntity.ok(ApiResponse.ok(page, LIST_RETRIEVED_MESSAGE));
     }
 

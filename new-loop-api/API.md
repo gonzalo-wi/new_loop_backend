@@ -196,6 +196,7 @@ GET /stock-controls                                        → todos los control
 GET /stock-controls?type=EXIT                             → solo salidas
 GET /stock-controls?type=ENTRY                            → solo entradas
 GET /stock-controls?from=2026-06-01&to=2026-06-30        → por rango de fecha
+GET /stock-controls?createdFrom=2026-06-15&createdTo=2026-06-15 → cargados ese día
 GET /stock-controls?routeId=661f9500-...                  → por reparto
 GET /stock-controls?controllerId=772a0600-...             → por controlador
 GET /stock-controls?type=EXIT&from=2026-06-01&routeId=... → combinados
@@ -210,6 +211,8 @@ GET /stock-controls?type=EXIT&from=2026-06-01&routeId=... → combinados
 | `controllerId` | UUID   | —            | Filtra por ID del usuario controlador. |
 | `from`         | date   | `YYYY-MM-DD` | Fecha de control desde (inclusive). |
 | `to`           | date   | `YYYY-MM-DD` | Fecha de control hasta (inclusive). |
+| `createdFrom`  | date   | `YYYY-MM-DD` | Fecha de creación desde (inclusive, desde las 00:00). |
+| `createdTo`    | date   | `YYYY-MM-DD` | Fecha de creación hasta (inclusive, todo el día). |
 | `page`         | int    | —            | Página (base 0). Default: `0`. |
 | `size`         | int    | —            | Resultados por página. Default: `20`. |
 | `sort`         | string | —            | Campo y dirección. Ej: `controlDate,desc`. |
