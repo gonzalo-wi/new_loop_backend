@@ -117,18 +117,18 @@ class UserServiceImplTest {
     }
 
     @Test
-    void createUser_rejectsLoaderWithoutBranch() {
-        var request = createRequest(Role.CARGADOR_DISPENSERS);
+    void createUser_rejectsControllerWithoutBranch() {
+        var request = createRequest(Role.CONTROLADOR);
 
         assertThatThrownBy(() -> userService.createUser(request))
                 .isInstanceOf(BranchRequiredForRoleException.class);
     }
 
     @Test
-    void createUser_acceptsLoaderWithBranch() {
+    void createUser_acceptsControllerWithBranch() {
         var branch  = new Branch();
         branch.setId(UUID.randomUUID());
-        var request = createRequest(Role.CARGADOR_DISPENSERS);
+        var request = createRequest(Role.CONTROLADOR);
         ReflectionTestUtils.setField(request, "branchId", branch.getId());
         var user = new User();
         when(branchRepository.findById(branch.getId())).thenReturn(Optional.of(branch));
@@ -142,9 +142,9 @@ class UserServiceImplTest {
     }
 
     @Test
-    void updateUser_rejectsLoaderWithoutBranch() {
+    void updateUser_rejectsControllerWithoutBranch() {
         var user = existingUser();
-        user.setRole(Role.CARGADOR_DISPENSERS);
+        user.setRole(Role.CONTROLADOR);
 
         assertThatThrownBy(() -> userService.updateUser(user.getId(), new UpdateUserRequest()))
                 .isInstanceOf(BranchRequiredForRoleException.class);

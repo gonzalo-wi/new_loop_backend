@@ -50,4 +50,4 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Salida y vuelta de dispensers a Aguas: se corrige el rechazo HTTP 400 ("Todos los campos son requeridos") que dejaba los movimientos reintentando en bucle. La salida al reparto ahora envía los campos que Aguas exige (`esrecarga=1` y `accion=3`) y la vuelta a planta va con `esrecarga=0`. Además, cuando el movimiento se registró sin usuario de sesión, se usa el nombre del técnico como usuario para no mandar el campo vacío.
 
 ### Removed
--
+- Los roles PICKER y CARGADOR_DISPENSERS: eran el mismo trabajo que CONTROLADOR. Al desplegar, la migración pasa a CONTROLADOR a todos los usuarios que los tenían, sin cambiar su sucursal. Las sesiones abiertas siguen funcionando con el rol nuevo; la app y el panel lo muestran recién al volver a iniciar sesión. Los registros de auditoría viejos conservan el rol que tenían en ese momento.

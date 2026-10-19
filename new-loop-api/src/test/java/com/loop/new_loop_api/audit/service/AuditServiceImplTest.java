@@ -162,7 +162,7 @@ class AuditServiceImplTest {
     // 5b. The 5-arg overload delegates with reason = null
     @Test
     void should_saveNullReason_when_registerCalledWithoutReason() {
-        var user = new AuthenticatedUser(UUID.randomUUID(), "picker1", "Picker One", Role.PICKER, UUID.randomUUID());
+        var user = new AuthenticatedUser(UUID.randomUUID(), "controller1", "Controller One", Role.CONTROLADOR, UUID.randomUUID());
         authenticateAs(user);
         var entityId = UUID.randomUUID();
 

@@ -21,7 +21,7 @@ Backend para controlar la mercadería que sale y vuelve en los camiones de repar
 - Además hay gestión de productos, sucursales, rutas/camiones, pedidos de descartables (`orders`),
   movimientos de dispensers, ubicación GPS de camiones (Powerfleet) y distribución de la APK mobile.
 
-Roles: `ADMIN`, `SUPERVISOR`, `CONTROLADOR`, `REPARTIDOR`, `PICKER`, `CARGADOR_DISPENSERS`.
+Roles: `ADMIN`, `SUPERVISOR`, `CONTROLADOR`, `REPARTIDOR`.
 
 ---
 

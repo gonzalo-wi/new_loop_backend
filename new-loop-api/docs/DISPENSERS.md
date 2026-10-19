@@ -2,7 +2,7 @@
 
 Módulo para registrar la carga y descarga de dispensers (equipos) en los camiones, escaneando sus números de serie. Cada movimiento se envía automáticamente a Aguas. Además, la **carga** (`LOAD`) se registra también en **Odoo** (salida de equipos al reparto).
 
-Usuarios: `CARGADOR_DISPENSERS` y `ADMIN`.
+Usuarios: `CONTROLADOR` y `ADMIN`.
 
 > **⚠️ Novedad (para el equipo mobile):** el flujo de carga (`LOAD`) ahora impacta también en Odoo, además de Aguas. **La app puede seguir funcionando igual que hasta ahora** (el envío a Odoo es automático en el backend, no hay cambios obligatorios en el request de creación). Lo nuevo y opcional está en dos endpoints de consulta (equipos disponibles y validación de series) y en cuatro campos `odoo*` de la respuesta. Ver [Salida a Odoo (carga / LOAD)](#salida-a-odoo-carga--load).
 
