@@ -20,8 +20,8 @@ public interface OdooDispatchService {
 
     /**
      * Subset of {@code equipos} that Odoo reports as NOT available for dispatch (unknown serial, wrong
-     * location or no stock). Returns an empty set when validation is unreachable, so a lookup failure
-     * never blocks the movement.
+     * location or no stock), in uppercase. Returns an empty set when validation is unreachable, so a lookup
+     * failure never blocks the movement.
      */
     Set<String> findUnavailableEquipos(List<String> equipos);
 }

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Component
@@ -29,7 +30,7 @@ public class OdooDispatchMapper {
         var params = OdooDispatchCreateParams.builder()
                 .fecha(movement.getMovementDate().toString().replace("-", ""))
                 .idreparto(movement.getRouteCode())
-                .equipos(new ArrayList<>(equipos))
+                .equipos(normalizeSerials(equipos))
                 .referenciaExterna(referenciaExterna)
                 .build();
 
@@ -40,7 +41,7 @@ public class OdooDispatchMapper {
 
     public OdooDispatchValidateRequest toValidateRequest(List<String> equipos) {
         var params = OdooDispatchValidateParams.builder()
-                .equipos(equipos)
+                .equipos(normalizeSerials(equipos))
                 .build();
 
         return OdooDispatchValidateRequest.builder()
@@ -57,6 +58,16 @@ public class OdooDispatchMapper {
         return OdooDispatchAvailableRequest.builder()
                 .params(params)
                 .build();
+    }
+
+    /** Odoo matches serials case-sensitively and stores them in uppercase. */
+    public static String normalizeSerial(String serial) {
+        return serial.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /** Also drops case-only repeats: Odoo rejects the whole request when a serial appears twice. */
+    public static List<String> normalizeSerials(List<String> serials) {
+        return new ArrayList<>(serials.stream().map(OdooDispatchMapper::normalizeSerial).distinct().toList());
     }
 
     /**

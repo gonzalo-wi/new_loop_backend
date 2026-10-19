@@ -35,6 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -237,6 +238,32 @@ class OdooDispatchServiceImplTest {
 
         verify(integrationCallMetrics).recordSuccess(IntegrationName.ODOO);
         verify(integrationCallMetrics, never()).recordError(any());
+    }
+
+    @Test
+    void should_sendUppercaseAndMatchDetalle_when_serialsWereScannedInLowercase() {
+        movement.setSerials(List.of("sn-1", "sn-2"));
+        when(dispenserMovementRepository.findById(movementId)).thenReturn(Optional.of(movement));
+        when(integrationLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        server.expect(requestTo(CREATE_URL))
+                .andExpect(jsonPath("$.params.equipos[0]").value("SN-1"))
+                .andRespond(withSuccess(
+                        "{\"result\":{\"success\":false,\"error\":\"Hay equipos no disponibles\","
+                                + "\"detalle\":[{\"serie\":\"SN-1\",\"motivo\":\"no en expedicion\"}]}}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(CREATE_URL))
+                .andExpect(jsonPath("$.params.equipos.length()").value(1))
+                .andExpect(jsonPath("$.params.equipos[0]").value("SN-2"))
+                .andRespond(withSuccess("{\"result\":{\"success\":true,\"picking_id\":8}}",
+                        MediaType.APPLICATION_JSON));
+
+        service.send(movementId);
+        server.verify();
+
+        assertThat(movement.getOdooStatus()).isEqualTo("SENT");
+        assertThat(movement.getOdooSkippedSerials()).containsExactly("SN-1");
     }
 
     @Test

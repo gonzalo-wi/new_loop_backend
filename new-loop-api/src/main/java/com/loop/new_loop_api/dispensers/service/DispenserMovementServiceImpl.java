@@ -15,6 +15,8 @@ import com.loop.new_loop_api.dispensers.exception.DispenserMovementAlreadyCancel
 import com.loop.new_loop_api.dispensers.exception.DispenserMovementNotFoundException;
 import com.loop.new_loop_api.dispensers.exception.DuplicateDispenserMovementException;
 import com.loop.new_loop_api.dispensers.exception.InvalidBaggedSerialsException;
+import com.loop.new_loop_api.dispensers.exception.MovementHasLaterReloadException;
+import com.loop.new_loop_api.dispensers.exception.SerialsAlreadyLoadedException;
 import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
@@ -35,7 +37,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -49,8 +55,10 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     private static final int UNLOAD_LOCATION_PLANTA_BAJA   = 49; 
     private static final int UNLOAD_STATE_EN_REPARACION    = 4;  
 
-    // Partial unique index from V30; must match the migration's name.
-    private static final String ACTIVE_MOVEMENT_UNIQUE_INDEX = "uq_dispenser_movements_type_route_date_active";
+    // Partial unique index from V36 (UNLOAD only: a route may get several LOADs a day); must match the migration's name.
+    private static final String ACTIVE_MOVEMENT_UNIQUE_INDEX = "uq_dispenser_movements_unload_route_date_active";
+
+    private static final String LOAD_LOCK_PREFIX = "dispenser-load:";
 
     private final DispenserMovementRepository dispenserMovementRepository;
     private final DispenserMovementMapper     dispenserMovementMapper;
@@ -68,11 +76,13 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         var date = request.getMovementDate() != null ? request.getMovementDate() : LocalDate.now();
         validateBaggedSerials(request);
         validateNoDuplicate(request, date);
+        var earlierLoads = findActiveLoads(request, date);
+        validateNoRepeatedSerials(request, date, earlierLoads);
         var movement = buildMovement(request, date);
         excludeUnregisteredSerials(movement);
         excludeUnavailableInOdoo(movement);
         var saved    = insertMovement(movement);
-        var response = dispenserMovementMapper.toResponse(saved);
+        var response = toResponse(saved, !earlierLoads.isEmpty());
         auditService.register("CREATE_DISPENSER_MOVEMENT", "DispenserMovement", saved.getId(), null, response);
         if (saved.getStatus() != DispenserMovementStatus.SKIPPED_UNREGISTERED) {
             eventPublisher.publishEvent(new DispenserMovementReadyForAguasEvent(saved.getId()));
@@ -104,13 +114,16 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         // el día completo, desde las 00:00 del from hasta antes de las 00:00 del día siguiente al to.
         if (createdFrom != null) spec = spec.and((r, q, cb) -> cb.greaterThanOrEqualTo(r.<LocalDateTime>get("createdAt"), createdFrom.atStartOfDay()));
         if (createdTo   != null) spec = spec.and((r, q, cb) -> cb.lessThan(r.<LocalDateTime>get("createdAt"), createdTo.plusDays(1).atStartOfDay()));
-        return dispenserMovementRepository.findAll(spec, pageable).map(dispenserMovementMapper::toResponse);
+        var page      = dispenserMovementRepository.findAll(spec, pageable);
+        var reloadIds = findReloadIds(page.getContent().stream().map(DispenserMovement::getId).toList());
+        return page.map(movement -> toResponse(movement, reloadIds.contains(movement.getId())));
     }
 
     @Override
     @Transactional(readOnly = true)
     public DispenserMovementResponse getMovementById(UUID id) {
-        return dispenserMovementMapper.toResponse(findMovementById(id));
+        var movement = findMovementById(id);
+        return toResponse(movement, isReload(movement));
     }
 
 
@@ -119,10 +132,11 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     public DispenserMovementResponse cancelMovement(UUID id) {
         var movement = findMovementById(id);
         ensureNotCancelled(movement);
+        ensureNoLaterReload(movement);
         deleteInAguasIfSent(movement);
         movement.setStatus(DispenserMovementStatus.CANCELLED);
         var saved    = dispenserMovementRepository.save(movement);
-        var response = dispenserMovementMapper.toResponse(saved);
+        var response = toResponse(saved, isReload(saved));
         auditService.register("CANCEL_DISPENSER_MOVEMENT", "DispenserMovement",
         saved.getId(), null, response);
         return response;
@@ -172,13 +186,46 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         if (!notScanned.isEmpty()) throw InvalidBaggedSerialsException.notScanned(notScanned);
     }
 
+    /** Only UNLOAD is one per route and day; a LOAD on a route that already has one is a recarga. */
     private void validateNoDuplicate(CreateDispenserMovementRequest request, LocalDate date) {
+        if (request.getType() != DispenserMovementType.UNLOAD) return;
         if (dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
                 request.getType(), request.getRouteCode(), date, DispenserMovementStatus.CANCELLED)) {
             throw new DuplicateDispenserMovementException(request.getType(), request.getRouteCode(), date);
         }
     }
 
+
+    /** Locks before reading, so two concurrent loads (a double tap, or two recargas) can't both pass the checks. */
+    private List<DispenserMovement> findActiveLoads(CreateDispenserMovementRequest request, LocalDate date) {
+        if (request.getType() != DispenserMovementType.LOAD) return List.of();
+        lockLoadsOfRouteDay(request.getRouteCode(), date);
+        return dispenserMovementRepository.findByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                DispenserMovementType.LOAD, request.getRouteCode(), date, DispenserMovementStatus.CANCELLED);
+    }
+
+    /**
+     * Odoo adds each recarga to what the route already has, so it must only carry new dispensers. Serials
+     * excluded from an earlier load never left, so they may go out now.
+     */
+    private void validateNoRepeatedSerials(CreateDispenserMovementRequest request, LocalDate date,
+                                           List<DispenserMovement> earlierLoads) {
+        if (earlierLoads.isEmpty()) return;
+        var alreadyLoaded = earlierLoads.stream()
+                .flatMap(load -> load.serialsToSend().stream())
+                .map(DispenserMovementServiceImpl::normalizeSerial)
+                .collect(Collectors.toSet());
+        var repeated = request.getSerials().stream()
+                .filter(serial -> alreadyLoaded.contains(normalizeSerial(serial)))
+                .toList();
+        if (!repeated.isEmpty()) {
+            throw new SerialsAlreadyLoadedException(repeated, request.getRouteCode(), date);
+        }
+    }
+
+    private static String normalizeSerial(String serial) {
+        return serial.trim().toUpperCase(Locale.ROOT);
+    }
 
     private DispenserMovement buildMovement(CreateDispenserMovementRequest request, LocalDate date) {
         var movement = dispenserMovementMapper.toEntity(request, date);
@@ -233,7 +280,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         if (unavailable.isEmpty()) return;
 
         var excluded = movement.getSerials().stream()
-                .filter(unavailable::contains)
+                .filter(serial -> unavailable.contains(normalizeSerial(serial)))
                 .toList();
         if (excluded.isEmpty()) return;
 
@@ -263,6 +310,36 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         if (movement.getStatus() == DispenserMovementStatus.CANCELLED) {
             throw new DispenserMovementAlreadyCancelledException(movement.getId());
         }
+    }
+
+    /** Cancelling an earlier load would leave Aguas and Odoo out of order: only the day's last load can change. */
+    private void ensureNoLaterReload(DispenserMovement movement) {
+        if (movement.getType() != DispenserMovementType.LOAD) return;
+        // Same lock as createMovement: otherwise a recarga could be registered while this load is being cancelled.
+        lockLoadsOfRouteDay(movement.getRouteCode(), movement.getMovementDate());
+        if (dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNotAndCreatedAtAfter(
+                DispenserMovementType.LOAD, movement.getRouteCode(), movement.getMovementDate(),
+                DispenserMovementStatus.CANCELLED, movement.getCreatedAt())) {
+            throw new MovementHasLaterReloadException(movement.getId());
+        }
+    }
+
+    private void lockLoadsOfRouteDay(String routeCode, LocalDate date) {
+        dispenserMovementRepository.lockLoadsOfRouteDay(LOAD_LOCK_PREFIX + routeCode + ":" + date);
+    }
+
+    private boolean isReload(DispenserMovement movement) {
+        if (movement.getType() != DispenserMovementType.LOAD) return false;
+        return findReloadIds(List.of(movement.getId())).contains(movement.getId());
+    }
+
+    private Set<UUID> findReloadIds(List<UUID> ids) {
+        if (ids.isEmpty()) return Set.of();
+        return dispenserMovementRepository.findReloadIds(ids, DispenserMovementType.LOAD, DispenserMovementStatus.CANCELLED);
+    }
+
+    private DispenserMovementResponse toResponse(DispenserMovement movement, boolean reload) {
+        return dispenserMovementMapper.toResponse(movement).toBuilder().reload(reload).build();
     }
 
     private void deleteInAguasIfSent(DispenserMovement movement) {

@@ -150,6 +150,7 @@ Authorization: Bearer <token>
     "locationId": 2,
     "stateId": 2,
     "movementDate": "2026-06-18",
+    "reload": false,
     "status": "REGISTERED",
     "serials": ["11177762", "LM29P05300840"],
     "excludedSerials": [],
@@ -168,6 +169,8 @@ Authorization: Bearer <token>
 
 > **Descargas (`UNLOAD`):** antes de responder, el backend descarta los seriales que figuran como "no registrados" en jMobile para esa fecha. Los descartados vienen en `excludedSerials` y no se envían a Aguas ni a Odoo. Si no queda ninguno para enviar, el movimiento se crea con `status: SKIPPED_UNREGISTERED` y no se llama a Aguas. Detalle completo en [DISPENSERS_NO_REGISTRADOS.md](./DISPENSERS_NO_REGISTRADOS.md).
 
+> **Recargas (`LOAD` repetido):** un reparto puede tener **varias cargas el mismo día**: la primera y las recargas. Cada recarga es un movimiento nuevo con el mismo request de siempre; viene con `reload: true`. A Aguas se manda igual que cualquier carga (Aguas la toma como "carga en el día" cuando la fecha es la de hoy) y a Odoo con su propia `odooReference`, así que **suma** stock al reparto en vez de pisar la carga anterior. La recarga solo puede llevar equipos nuevos: un serial que ya salió en una carga anterior de ese reparto y fecha se rechaza con `409`. Los que se excluyeron de la carga anterior (por no estar disponibles en Odoo) sí se pueden volver a cargar. Las **descargas** siguen siendo una por reparto y día.
+
 ### Errores
 
 **`400 Bad Request`** — faltan campos requeridos
@@ -176,6 +179,24 @@ Authorization: Bearer <token>
   "status": 400,
   "error": "Bad Request",
   "message": "serials: At least one dispenser serial is required"
+}
+```
+
+**`409 Conflict`** — ya hay una descarga activa para ese reparto y fecha
+```json
+{
+  "status": 409,
+  "error": "Conflict",
+  "message": "A UNLOAD dispenser movement already exists for route 179 on 2026-06-18. Edit or cancel it instead of creating a duplicate."
+}
+```
+
+**`409 Conflict`** — la recarga trae equipos que ya salieron en una carga anterior del día
+```json
+{
+  "status": 409,
+  "error": "Conflict",
+  "message": "These dispensers already went out in an earlier load of route 179 on 2026-06-18: [11177762]. A reload must only carry new dispensers."
 }
 ```
 
@@ -295,6 +316,15 @@ Devuelve el **movimiento nuevo** (con su nuevo `id`).
 ```
 En este caso el movimiento anterior **no** se canceló ni se creó el nuevo — se puede reintentar.
 
+**`409 Conflict`** — la carga tiene una recarga posterior (mismo reparto y fecha). Solo se puede corregir la **última** carga del día.
+```json
+{
+  "status": 409,
+  "error": "Conflict",
+  "message": "Dispenser movement {id} has a later reload on the same route and date. Only the last load of the day can be cancelled or corrected."
+}
+```
+
 ---
 
 ## 7. Cancelar un movimiento (eliminar)
@@ -320,7 +350,7 @@ Authorization: Bearer <token>
 ```
 
 ### Errores
-**`409 Conflict`** — ya estaba cancelado, o falló el borrado en Aguas.
+**`409 Conflict`** — ya estaba cancelado, falló el borrado en Aguas, o es una carga con una recarga posterior (solo se puede cancelar la última carga del día).
 
 ---
 
@@ -440,6 +470,7 @@ La confirmación de la carga en Odoo la hace el backend solo (no hay que llamar 
 | `locationId`           | integer  | Ubicación destino enviada a Aguas                  |
 | `stateId`              | integer  | Estado destino enviado a Aguas                     |
 | `movementDate`         | date     | Fecha del movimiento                               |
+| `reload`               | boolean  | `true` si es una recarga: ya había otra carga activa de ese reparto y fecha registrada antes. Siempre `false` en `UNLOAD` |
 | `status`               | string   | Estado del envío (ver tabla)                       |
 | `serials`              | array    | Números de serie escaneados                        |
 | `excludedSerials`      | array    | Seriales escaneados que **no** se enviaron por figurar como no registrados (solo `UNLOAD`) |

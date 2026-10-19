@@ -11,6 +11,8 @@ import com.loop.new_loop_api.dispensers.event.DispenserMovementReadyForAguasEven
 import com.loop.new_loop_api.dispensers.event.DispenserMovementUnregisteredSerialsExcludedEvent;
 import com.loop.new_loop_api.dispensers.exception.DuplicateDispenserMovementException;
 import com.loop.new_loop_api.dispensers.exception.InvalidBaggedSerialsException;
+import com.loop.new_loop_api.dispensers.exception.MovementHasLaterReloadException;
+import com.loop.new_loop_api.dispensers.exception.SerialsAlreadyLoadedException;
 import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
@@ -21,10 +23,14 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -37,6 +43,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -172,8 +180,6 @@ class DispenserMovementServiceImplTest {
                 .serials(new java.util.ArrayList<>(List.of("SN-1", "SN-2")))
                 .build();
 
-        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
-                any(), any(), any(), any())).thenReturn(false);
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-2"));
@@ -217,8 +223,6 @@ class DispenserMovementServiceImplTest {
                 .serials(new java.util.ArrayList<>(List.of("SN-1")))
                 .build();
 
-        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
-                any(), any(), any(), any())).thenReturn(false);
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of());
@@ -240,8 +244,6 @@ class DispenserMovementServiceImplTest {
                 .serials(new java.util.ArrayList<>(List.of("SN-1", "SN-2", "SN-3")))
                 .build();
 
-        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
-                any(), any(), any(), any())).thenReturn(false);
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-2"));
@@ -266,8 +268,6 @@ class DispenserMovementServiceImplTest {
                 .serials(new java.util.ArrayList<>(List.of("SN-1")))
                 .build();
 
-        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
-                any(), any(), any(), any())).thenReturn(false);
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-1"));
@@ -282,14 +282,252 @@ class DispenserMovementServiceImplTest {
     }
 
     @Test
-    void should_throwDuplicate_when_concurrentInsertHitsActiveMovementUniqueIndex() {
-        stubLoadMovementUpToSave();
+    void should_throwDuplicate_when_concurrentInsertHitsActiveUnloadUniqueIndex() {
+        stubUnloadMovementUpToSave();
         when(dispenserMovementRepository.saveAndFlush(any()))
-                .thenThrow(uniqueViolation("uq_dispenser_movements_type_route_date_active"));
+                .thenThrow(uniqueViolation("uq_dispenser_movements_unload_route_date_active"));
 
-        assertThatThrownBy(() -> dispenserMovementService.createMovement(loadRequest(List.of("SN-1"))))
+        assertThatThrownBy(() -> dispenserMovementService.createMovement(unloadRequest(List.of("SN-1"))))
                 .isInstanceOf(DuplicateDispenserMovementException.class);
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void shouldRejectASecondUnload_when_routeAlreadyHasAnActiveUnloadThatDay() {
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(true);
+
+        assertThatThrownBy(() -> dispenserMovementService.createMovement(unloadRequest(List.of("SN-1"))))
+                .isInstanceOf(DuplicateDispenserMovementException.class);
+        verify(dispenserMovementRepository, never()).saveAndFlush(any());
+    }
+
+    // ---------- recarga: 2nd+ LOAD on the same route and date ----------
+
+    @Test
+    void shouldRegisterAReload_when_routeAlreadyHasALoadThatDay() {
+        stubLoadMovementUpToSave();
+        when(dispenserMovementRepository.findByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                DispenserMovementType.LOAD, "1", LocalDate.now(), DispenserMovementStatus.CANCELLED))
+                .thenReturn(List.of(activeLoad(List.of("SN-9"))));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        var response = dispenserMovementService.createMovement(loadRequest(List.of("SN-1")));
+
+        assertThat(response.isReload()).isTrue();
+        verify(dispenserMovementRepository, never())
+                .existsByTypeAndRouteCodeAndMovementDateAndStatusNot(any(), any(), any(), any());
+        verify(eventPublisher).publishEvent(any(DispenserMovementReadyForAguasEvent.class));
+    }
+
+    @Test
+    void shouldLockTheRouteDay_when_creatingALoad() {
+        stubLoadMovementUpToSave();
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(loadRequest(List.of("SN-1")));
+
+        // Without a unique index for LOAD, the lock is what keeps two concurrent loads from both passing the checks.
+        var order = inOrder(dispenserMovementRepository);
+        order.verify(dispenserMovementRepository).lockLoadsOfRouteDay("dispenser-load:1:" + LocalDate.now());
+        order.verify(dispenserMovementRepository).findByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any());
+    }
+
+    @Test
+    void shouldLockTheRouteDay_when_cancellingALoad() {
+        var load = activeLoad(List.of("SN-1"));
+        when(dispenserMovementRepository.findById(load.getId())).thenReturn(Optional.of(load));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.cancelMovement(load.getId());
+
+        var order = inOrder(dispenserMovementRepository);
+        order.verify(dispenserMovementRepository).lockLoadsOfRouteDay("dispenser-load:1:" + load.getMovementDate());
+        order.verify(dispenserMovementRepository).existsByTypeAndRouteCodeAndMovementDateAndStatusNotAndCreatedAtAfter(
+                any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void shouldNotLock_when_creatingAnUnload() {
+        stubUnloadMovementUpToSave();
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(unloadRequest(List.of("SN-1")));
+
+        verify(dispenserMovementRepository, never()).lockLoadsOfRouteDay(any());
+    }
+
+    @Test
+    void shouldNotFlagAsReload_when_itIsTheFirstLoadOfTheDay() {
+        stubLoadMovementUpToSave();
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        var response = dispenserMovementService.createMovement(loadRequest(List.of("SN-1")));
+
+        assertThat(response.isReload()).isFalse();
+    }
+
+    @Test
+    void shouldRejectAReload_when_aSerialAlreadyWentOutInAnEarlierLoadThatDay() {
+        when(dispenserMovementRepository.findByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any()))
+                .thenReturn(List.of(activeLoad(List.of("SN-1", "SN-5"))));
+
+        assertThatThrownBy(() -> dispenserMovementService.createMovement(loadRequest(List.of("sn-1", "SN-2"))))
+                .isInstanceOf(SerialsAlreadyLoadedException.class)
+                .hasMessageContaining("sn-1")
+                .hasMessageNotContaining("SN-2");
+        verify(dispenserMovementRepository, never()).saveAndFlush(any());
+        verify(odooDispatchService, never()).findUnavailableEquipos(any());
+    }
+
+    @Test
+    void shouldAllowReloadingASerial_when_itWasExcludedFromTheEarlierLoad() {
+        stubLoadMovementUpToSave();
+        var earlier = activeLoad(List.of("SN-1"));
+        earlier.getExcludedSerials().add("SN-1"); // never left: unavailable in Odoo at the time
+        when(dispenserMovementRepository.findByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(List.of(earlier));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(loadRequest(List.of("SN-1")));
+
+        verify(dispenserMovementRepository).saveAndFlush(any());
+    }
+
+    @Test
+    void shouldExcludeUnavailableInOdoo_when_scannedSerialCaseDiffersFromOdoo() {
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.LOAD)
+                .routeCode("1")
+                .serials(new java.util.ArrayList<>(List.of("sn-1", "sn-2")))
+                .build();
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-2"));
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.createMovement(loadRequest(List.of("sn-1", "sn-2")));
+
+        assertThat(movement.getExcludedSerials()).containsExactly("sn-2");
+    }
+
+    @Test
+    void shouldRejectCancellingALoad_when_aLaterReloadExists() {
+        var load = activeLoad(List.of("SN-1"));
+        load.setAguasMovementId("77");
+        when(dispenserMovementRepository.findById(load.getId())).thenReturn(Optional.of(load));
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNotAndCreatedAtAfter(
+                DispenserMovementType.LOAD, "1", load.getMovementDate(), DispenserMovementStatus.CANCELLED,
+                load.getCreatedAt())).thenReturn(true);
+
+        assertThatThrownBy(() -> dispenserMovementService.cancelMovement(load.getId()))
+                .isInstanceOf(MovementHasLaterReloadException.class);
+        verify(aguasEquipmentService, never()).deleteInAguas(any());
+        assertThat(load.getStatus()).isNotEqualTo(DispenserMovementStatus.CANCELLED);
+    }
+
+    @Test
+    void shouldRejectCorrectingALoad_when_aLaterReloadExists() {
+        var load = activeLoad(List.of("SN-1"));
+        when(dispenserMovementRepository.findById(load.getId())).thenReturn(Optional.of(load));
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNotAndCreatedAtAfter(
+                any(), any(), any(), any(), any())).thenReturn(true);
+
+        assertThatThrownBy(() -> dispenserMovementService.updateMovement(load.getId(), loadRequest(List.of("SN-2"))))
+                .isInstanceOf(MovementHasLaterReloadException.class);
+        verify(aguasEquipmentService, never()).deleteInAguas(any());
+        verify(dispenserMovementRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void shouldCancelTheLastReload_when_noLaterLoadExists() {
+        var reload = activeLoad(List.of("SN-1"));
+        reload.setAguasMovementId("78");
+        when(dispenserMovementRepository.findById(reload.getId())).thenReturn(Optional.of(reload));
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNotAndCreatedAtAfter(
+                any(), any(), any(), any(), any())).thenReturn(false);
+        when(aguasEquipmentService.deleteInAguas(reload.getId())).thenReturn(true);
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.cancelMovement(reload.getId());
+
+        assertThat(reload.getStatus()).isEqualTo(DispenserMovementStatus.CANCELLED);
+    }
+
+    @Test
+    void shouldNotCheckForLaterReloads_when_cancellingAnUnload() {
+        var unload = activeLoad(List.of("SN-1"));
+        unload.setType(DispenserMovementType.UNLOAD);
+        when(dispenserMovementRepository.findById(unload.getId())).thenReturn(Optional.of(unload));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+
+        dispenserMovementService.cancelMovement(unload.getId());
+
+        verify(dispenserMovementRepository, never()).existsByTypeAndRouteCodeAndMovementDateAndStatusNotAndCreatedAtAfter(
+                any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void shouldFlagReloadsInTheListing_when_anEarlierLoadExistsForTheSameRouteAndDate() {
+        var first  = activeLoad(List.of("SN-1"));
+        var second = activeLoad(List.of("SN-2"));
+        var pageable = PageRequest.of(0, 20);
+        when(dispenserMovementRepository.findAll(ArgumentMatchers.<Specification<DispenserMovement>>any(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(first, second), pageable, 2));
+        when(dispenserMovementRepository.findReloadIds(any(), any(), any())).thenReturn(Set.of(second.getId()));
+        when(dispenserMovementMapper.toResponse(first)).thenReturn(DispenserMovementResponse.builder().id(first.getId()).build());
+        when(dispenserMovementMapper.toResponse(second)).thenReturn(DispenserMovementResponse.builder().id(second.getId()).build());
+
+        var page = dispenserMovementService.getAllMovements(null, null, null, null, null, null, null, pageable);
+
+        assertThat(page.getContent()).extracting(DispenserMovementResponse::isReload).containsExactly(false, true);
+    }
+
+    @Test
+    void shouldFlagReload_when_gettingAReloadById() {
+        var reload = activeLoad(List.of("SN-2"));
+        when(dispenserMovementRepository.findById(reload.getId())).thenReturn(Optional.of(reload));
+        when(dispenserMovementRepository.findReloadIds(any(), any(), any())).thenReturn(Set.of(reload.getId()));
+        when(dispenserMovementMapper.toResponse(reload)).thenReturn(DispenserMovementResponse.builder().build());
+
+        assertThat(dispenserMovementService.getMovementById(reload.getId()).isReload()).isTrue();
+    }
+
+    private static DispenserMovement activeLoad(List<String> serials) {
+        return DispenserMovement.builder()
+                .id(UUID.randomUUID())
+                .type(DispenserMovementType.LOAD)
+                .status(DispenserMovementStatus.SENT_TO_AGUAS)
+                .routeCode("1")
+                .movementDate(LocalDate.now())
+                .createdAt(java.time.LocalDateTime.now().minusHours(1))
+                .serials(new java.util.ArrayList<>(serials))
+                .build();
+    }
+
+    private void stubUnloadMovementUpToSave() {
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.UNLOAD)
+                .routeCode("1")
+                .movementDate(LocalDate.now())
+                .serials(new java.util.ArrayList<>(List.of("SN-1")))
+                .build();
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(false);
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(unregisteredDispenserService.findUnregisteredSerials(any())).thenReturn(Set.of());
     }
 
     @Test
@@ -378,8 +616,6 @@ class DispenserMovementServiceImplTest {
                 .movementDate(LocalDate.now())
                 .serials(new java.util.ArrayList<>(List.of("SN-1")))
                 .build();
-        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
-                any(), any(), any(), any())).thenReturn(false);
         when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
         when(currentUserProvider.current()).thenReturn(Optional.empty());
         when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of());

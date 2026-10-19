@@ -138,7 +138,7 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
         for (var item : array) {
             if (!item.path("disponible").asBoolean(true)) {
                 var serie = item.path("serie").asText(null);
-                if (serie != null) unavailable.add(serie);
+                if (serie != null) unavailable.add(OdooDispatchMapper.normalizeSerial(serie));
             }
         }
         return unavailable;
@@ -161,7 +161,8 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
         // Only the outcome of this attempt counts: a retry that errors out must not keep an older skip.
         recordSkipped(movement, List.of());
 
-        var equipos = new ArrayList<>(movement.serialsToSend());
+        // Normalized up front so the series Odoo echoes back in "detalle" match what we sent.
+        var equipos = OdooDispatchMapper.normalizeSerials(movement.serialsToSend());
         var outcome = dispatch(movement, equipos, referenciaExterna);
         integrationLog.setRequestPayload(outcome.requestPayload());
 
@@ -234,6 +235,7 @@ public class OdooDispatchServiceImpl implements OdooDispatchService {
         return StreamSupport.stream(detalle.spliterator(), false)
                 .map(item -> item.path("serie").asText(null))
                 .filter(Objects::nonNull)
+                .map(OdooDispatchMapper::normalizeSerial)
                 .collect(Collectors.toSet());
     }
 

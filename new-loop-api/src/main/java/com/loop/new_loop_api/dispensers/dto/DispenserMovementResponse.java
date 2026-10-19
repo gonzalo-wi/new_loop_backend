@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class DispenserMovementResponse {
 
     private UUID                    id;
@@ -21,6 +21,8 @@ public class DispenserMovementResponse {
     private Integer                 locationId;
     private Integer                 stateId;
     private LocalDate               movementDate;
+    // LOAD only: true when an earlier active LOAD exists for the same route and date (a recarga).
+    private boolean                 reload;
     private DispenserMovementStatus status;
     private List<String>            serials;
     private List<String>            excludedSerials;

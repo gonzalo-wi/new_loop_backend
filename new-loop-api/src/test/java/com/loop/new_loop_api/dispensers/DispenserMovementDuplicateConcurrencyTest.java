@@ -5,6 +5,8 @@ import com.loop.new_loop_api.dispensers.dto.DispenserMovementResponse;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.exception.DuplicateDispenserMovementException;
+import com.loop.new_loop_api.dispensers.exception.MovementHasLaterReloadException;
+import com.loop.new_loop_api.dispensers.exception.SerialsAlreadyLoadedException;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementService;
 import com.loop.new_loop_api.support.PostgresIntegrationTest;
@@ -37,8 +39,8 @@ class DispenserMovementDuplicateConcurrencyTest extends PostgresIntegrationTest 
     }
 
     @Test
-    void shouldCreateOnlyOneMovementWhenTwoRequestsArriveTogether() throws Exception {
-        Callable<DispenserMovementResponse> create = () -> dispenserMovementService.createMovement(request());
+    void shouldCreateOnlyOneUnloadWhenTwoRequestsArriveTogether() throws Exception {
+        Callable<DispenserMovementResponse> create = () -> dispenserMovementService.createMovement(unload());
 
         var outcomes = runConcurrently(List.of(create, create));
 
@@ -51,24 +53,59 @@ class DispenserMovementDuplicateConcurrencyTest extends PostgresIntegrationTest 
     }
 
     @Test
-    void shouldReturnConflictWhenDuplicateSlipsPastTheExistsCheck() {
-        dispenserMovementService.createMovement(request());
+    void shouldReturnConflictWhenDuplicateUnloadSlipsPastTheExistsCheck() {
+        dispenserMovementService.createMovement(unload());
         // Simulates the race window: the check sees nothing, so only the unique index can stop the insert.
         doReturn(false).when(dispenserMovementRepository)
                 .existsByTypeAndRouteCodeAndMovementDateAndStatusNot(any(), any(), any(), any());
 
-        assertThatThrownBy(() -> dispenserMovementService.createMovement(request()))
+        assertThatThrownBy(() -> dispenserMovementService.createMovement(unload()))
                 .isInstanceOf(DuplicateDispenserMovementException.class);
         assertThat(activeMovements()).isEqualTo(1);
     }
 
     @Test
     void shouldAllowEditingAMovementForTheSameRouteAndDate() {
-        var original = dispenserMovementService.createMovement(request());
+        var original = dispenserMovementService.createMovement(unload());
 
-        dispenserMovementService.updateMovement(original.getId(), request());
+        dispenserMovementService.updateMovement(original.getId(), unload());
 
         assertThat(activeMovements()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldKeepALoadAndItsReloadActiveForTheSameRouteAndDate() {
+        var load   = dispenserMovementService.createMovement(load("SN-1"));
+        var reload = dispenserMovementService.createMovement(load("SN-2"));
+
+        assertThat(load.isReload()).isFalse();
+        assertThat(reload.isReload()).isTrue();
+        assertThat(activeMovements()).isEqualTo(2);
+        assertThat(dispenserMovementService.getMovementById(reload.getId()).isReload()).isTrue();
+    }
+
+    @Test
+    void shouldLetOnlyOneOfTwoConcurrentLoadsWithTheSameSerialThrough() throws Exception {
+        Callable<DispenserMovementResponse> create = () -> dispenserMovementService.createMovement(load("SN-1"));
+
+        var outcomes = runConcurrently(List.of(create, create));
+
+        assertThat(outcomes).filteredOn(Outcome::succeeded).hasSize(1);
+        assertThat(outcomes).filteredOn(o -> !o.succeeded())
+                .singleElement()
+                .extracting(Outcome::error)
+                .isInstanceOf(SerialsAlreadyLoadedException.class);
+        assertThat(activeMovements()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldRejectCancellingALoadOnceItHasAReload() {
+        var load = dispenserMovementService.createMovement(load("SN-1"));
+        dispenserMovementService.createMovement(load("SN-2"));
+
+        assertThatThrownBy(() -> dispenserMovementService.cancelMovement(load.getId()))
+                .isInstanceOf(MovementHasLaterReloadException.class);
+        assertThat(activeMovements()).isEqualTo(2);
     }
 
     private long activeMovements() {
@@ -78,13 +115,21 @@ class DispenserMovementDuplicateConcurrencyTest extends PostgresIntegrationTest 
                 .count();
     }
 
-    private CreateDispenserMovementRequest request() {
+    private CreateDispenserMovementRequest unload() {
+        return request(DispenserMovementType.UNLOAD, "SN-1");
+    }
+
+    private CreateDispenserMovementRequest load(String serial) {
+        return request(DispenserMovementType.LOAD, serial);
+    }
+
+    private CreateDispenserMovementRequest request(DispenserMovementType type, String serial) {
         var request = new CreateDispenserMovementRequest();
-        request.setType(DispenserMovementType.LOAD);
+        request.setType(type);
         request.setRouteCode(routeCode);
         request.setTechnician("Tech 1");
         request.setMovementDate(LocalDate.now());
-        request.setSerials(List.of("SN-1"));
+        request.setSerials(List.of(serial));
         return request;
     }
 }

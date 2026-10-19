@@ -77,6 +77,33 @@ class OdooDispatchMapperTest {
     }
 
     @Test
+    void should_sendSerialsInUppercase_when_toCreateRequest() {
+        movement.setSerials(List.of("sn-1", " Sn-2 "));
+
+        var request = mapper.toCreateRequest(movement, "REF");
+
+        // Odoo matches serials case-sensitively and stores them in uppercase.
+        assertThat(request.getParams().getEquipos()).containsExactly("SN-1", "SN-2");
+    }
+
+    @Test
+    void should_sendASerialOnce_when_itWasScannedTwiceInDifferentCase() {
+        movement.setSerials(List.of("sn-1", "SN-1", "SN-2"));
+
+        var request = mapper.toCreateRequest(movement, "REF");
+
+        // Odoo rejects the whole request when a serial repeats.
+        assertThat(request.getParams().getEquipos()).containsExactly("SN-1", "SN-2");
+    }
+
+    @Test
+    void should_sendSerialsInUppercase_when_toValidateRequest() {
+        var request = mapper.toValidateRequest(List.of("sn-1", "SN-2"));
+
+        assertThat(request.getParams().getEquipos()).containsExactly("SN-1", "SN-2");
+    }
+
+    @Test
     void should_excludeExcludedSerials_when_toCreateRequest() {
         movement.setExcludedSerials(List.of("SN-2"));
 
