@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private static final String CONCURRENT_MODIFICATION_MESSAGE = "The record was modified by another user. Reload it and try again.";
+    private static final String UNREADABLE_BODY_MESSAGE         = "Request body is malformed or contains an invalid value";
 
     private final ErrorMetrics errorMetrics;
 
@@ -65,6 +67,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, "Invalid value for parameter '" + ex.getName() + "'", ex, request);
+    }
+
+    /** Invalid JSON or a value Jackson can't bind (e.g. an unknown role) is a client error, not a 500. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, UNREADABLE_BODY_MESSAGE, ex, request);
     }
 
     @ExceptionHandler(BadCredentialsException.class)

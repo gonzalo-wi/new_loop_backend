@@ -7,6 +7,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.servlet.HandlerMapping;
 
@@ -85,5 +87,18 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody().getMessage())
                 .isEqualTo("The record was modified by another user. Reload it and try again.");
+    }
+
+    @Test
+    void should_return400_when_requestBodyIsUnreadable() {
+        var request = new MockHttpServletRequest("POST", "/users");
+        var ex = new HttpMessageNotReadableException("Cannot deserialize Role from \"PICKER\"",
+                new MockHttpInputMessage(new byte[0]));
+
+        var response = handler.handleUnreadableBody(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("Request body is malformed or contains an invalid value");
     }
 }

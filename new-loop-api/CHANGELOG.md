@@ -8,6 +8,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
 ### Added
+- Crear o editar un usuario con un rol inexistente (o cualquier body con JSON inválido o un valor que no corresponde) ahora responde 400 en lugar de 500.
 - Listado de controles de stock: se puede filtrar por fecha de carga (`createdFrom`/`createdTo`, días completos), además de por la fecha del control. El panel lo usa para mostrar lo cargado hoy, porque una salida queda fechada para el próximo reparto.
 - Dispensers embolsados en descargas (UNLOAD): al registrar una descarga se pueden marcar las series que volvieron embolsadas (`baggedSerials`), es decir, dispensers nuevos que no se pudieron entregar, para que en planta no los manden a reparación. El dato queda solo en Loop: igual se envían a Aguas y a Odoo como reparación, como hasta ahora. Se ve en la respuesta del movimiento y en la trazabilidad por serie (`bagged`). Solo vale en descargas y para series escaneadas en ese movimiento; si no, responde 400. El campo es opcional, así que los clientes actuales siguen funcionando.
 - Trazabilidad de dispensers por número de serie (`GET /dispenser-movements/serials/{serial}/history`): devuelve todas las cargas y descargas en las que se escaneó la serie, de la más nueva a la más vieja (hasta 100), con reparto, técnico, quién la registró y, para esa serie puntual, si llegó a Aguas y a Odoo (enviada, pendiente, con error, excluida, dejada afuera por Odoo o anulada) y el picking de Odoo. La búsqueda no distingue mayúsculas.
