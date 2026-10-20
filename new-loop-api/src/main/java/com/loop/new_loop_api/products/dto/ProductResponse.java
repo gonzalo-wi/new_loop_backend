@@ -19,6 +19,7 @@ public class ProductResponse {
     private ProductType   type;
     private String        unit;
     private Integer       packQuantity;
+    private Boolean       fullEqualsTotal;
     private Boolean       active;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

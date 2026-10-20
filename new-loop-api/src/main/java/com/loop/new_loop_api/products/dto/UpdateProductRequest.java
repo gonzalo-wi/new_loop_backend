@@ -25,4 +25,6 @@ public class UpdateProductRequest {
 
     @PositiveOrZero(message = "Pack quantity must be zero or positive")
     private Integer packQuantity;
+
+    private Boolean fullEqualsTotal;
 }

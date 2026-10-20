@@ -9,6 +9,7 @@ import com.loop.new_loop_api.stockcontrols.dto.PendingArrivalResponse;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlItemResponse;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.entity.ControlType;
 import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
 import org.springframework.stereotype.Component;
@@ -65,12 +66,15 @@ public class StockControlMapper {
         if (request.getObservations()  != null) control.setObservations(request.getObservations());
     }
 
+    /** In ENTRY controls a fullEqualsTotal product stores full = total, whatever the client sent (EXIT doesn't count full). */
     public StockControlItem toItem(CreateStockControlItemRequest request, Product product, StockControl control) {
+        var fullMirrorsTotal = control.getType() == ControlType.ENTRY && Boolean.TRUE.equals(product.getFullEqualsTotal());
+        var fullQuantity = fullMirrorsTotal ? request.getTotalQuantity() : request.getFullQuantity();
         return StockControlItem.builder()
                 .stockControl(control)
                 .product(product)
                 .totalQuantity(request.getTotalQuantity())
-                .fullQuantity(request.getFullQuantity())
+                .fullQuantity(fullQuantity)
                 .exchangeQuantity(request.getExchangeQuantity())
                 .observations(request.getObservations())
                 .build();

@@ -45,6 +45,11 @@ public class Product implements Activatable {
     @Column(name = "pack_quantity")
     private Integer packQuantity;
 
+    // Products that always come back full: the controller only counts the total and full mirrors it.
+    @Column(name = "full_equals_total", nullable = false)
+    @Builder.Default
+    private Boolean fullEqualsTotal = false;
+
     @Column(name = "active", nullable = false)
     @Builder.Default
     private Boolean active = true;

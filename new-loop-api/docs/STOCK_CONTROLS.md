@@ -71,7 +71,7 @@ Crea un nuevo control de salida (`EXIT`) o entrada (`ENTRY`).
 |--------------------|---------|-----------|------------------------------------------------|
 | `productId`        | UUID    | Sí        | ID del producto                                |
 | `totalQuantity`    | integer | Sí        | Cantidad total (≥ 0)                           |
-| `fullQuantity`     | integer | Sí        | Cantidad llena (≥ 0)                           |
+| `fullQuantity`     | integer | Sí        | Cantidad llena (≥ 0). En entradas, para productos con `fullEqualsTotal` el backend guarda el mismo valor que el total (ver [PRODUCTS_MOBILE.md](PRODUCTS_MOBILE.md)) |
 | `exchangeQuantity` | integer | Sí        | Cantidad de cambio (≥ 0)                       |
 | `observations`     | string  | No        | Observaciones del ítem (máx. 500 caracteres)   |
 

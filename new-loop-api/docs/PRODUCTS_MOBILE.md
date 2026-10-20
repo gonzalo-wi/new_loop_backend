@@ -41,6 +41,7 @@ Los productos vienen ordenados por `displayOrder` ascendente — ese es el orden
         "type": "RETORNABLE",
         "unit": "UN",
         "packQuantity": 1,
+        "fullEqualsTotal": false,
         "active": true,
         "createdAt": "2026-01-10T09:00:00",
         "updatedAt": "2026-01-10T09:00:00"
@@ -54,6 +55,7 @@ Los productos vienen ordenados por `displayOrder` ascendente — ese es el orden
         "type": "DESCARTABLE",
         "unit": "UN",
         "packQuantity": 6,
+        "fullEqualsTotal": false,
         "active": true,
         "createdAt": "2026-01-10T09:00:00",
         "updatedAt": "2026-01-10T09:00:00"
@@ -79,6 +81,7 @@ Los productos vienen ordenados por `displayOrder` ascendente — ese es el orden
 | `type`         | string  | `RETORNABLE` o `DESCARTABLE`                                  |
 | `unit`         | string  | Unidad de medida (ej. `UN`, `LT`, `KG`)                      |
 | `packQuantity` | integer | Cantidad por pack o bulto                                     |
+| `fullEqualsTotal` | boolean | Si es `true`, los llenos son siempre iguales al total (ej. pallets, racks, carros, cajones): en los controles de entrada la app no pide "Llenos" y el backend guarda `fullQuantity = totalQuantity` sin importar lo que se envíe |
 | `active`       | boolean | Si el producto está activo                                    |
 
 > Solo mostrar productos con `active: true`. Los productos inactivos no pueden usarse en controles y el backend los rechaza con `409`.
@@ -91,7 +94,7 @@ Los productos vienen ordenados por `displayOrder` ascendente — ese es el orden
 2. Mostrar la lista de productos activos en el orden que vienen
 3. El repartidor/controlador ingresa para cada producto:
    - `totalQuantity` — cantidad total
-   - `fullQuantity` — cantidad llena
+   - `fullQuantity` — cantidad llena (en productos con `fullEqualsTotal: true` no se pide: enviar el mismo valor que el total)
    - `exchangeQuantity` — cantidad de cambio
 4. Con esos datos armar el body del `POST /stock-controls` (ver [STOCK_CONTROLS.md](STOCK_CONTROLS.md))
 

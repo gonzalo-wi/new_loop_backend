@@ -18,6 +18,7 @@ public class ProductMapper {
                 .type(request.getType())
                 .unit(request.getUnit())
                 .packQuantity(request.getPackQuantity())
+                .fullEqualsTotal(Boolean.TRUE.equals(request.getFullEqualsTotal()))
                 .active(true)
                 .build();
     }
@@ -32,6 +33,7 @@ public class ProductMapper {
                 .type(product.getType())
                 .unit(product.getUnit())
                 .packQuantity(product.getPackQuantity())
+                .fullEqualsTotal(product.getFullEqualsTotal())
                 .active(product.getActive())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
@@ -45,5 +47,6 @@ public class ProductMapper {
         if (request.getType() != null)         product.setType(request.getType());
         if (request.getUnit() != null)         product.setUnit(request.getUnit());
         if (request.getPackQuantity() != null) product.setPackQuantity(request.getPackQuantity());
+        if (request.getFullEqualsTotal() != null) product.setFullEqualsTotal(request.getFullEqualsTotal());
     }
 }
