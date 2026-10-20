@@ -10,7 +10,7 @@ Módulo para registrar salidas y entradas de mercadería de los repartos.
 - [Listar controles](#listar-controles)
 - [Obtener control por ID](#obtener-control-por-id)
 - [Actualizar control](#actualizar-control)
-- [Confirmar control](#confirmar-control)
+- [Rechazar control (repartidor)](#rechazar-control-repartidor)
 - [Corregir control (SUPERVISOR)](#corregir-control-supervisor)
 - [Ver remito en PDF](#ver-remito-en-pdf)
 - [Referencia de campos](#referencia-de-campos)
@@ -198,7 +198,9 @@ PATCH /stock-controls/{id}
 Authorization: Bearer <token>
 ```
 
-Solo se puede modificar un control en estado `CONTROLLED`. Todos los campos son opcionales — solo se actualizan los que se envíen.
+Se puede modificar mientras el repartidor no lo aceptó: estados `CONTROLLED`, `PENDING_DRIVER_APPROVAL` o `REJECTED_BY_DRIVER` (todavía no se mandó nada a Aguas). Todos los campos son opcionales — solo se actualizan los que se envíen.
+
+> Si el control estaba `REJECTED_BY_DRIVER`, guardarlo lo **reenvía al repartidor**: vuelve a `PENDING_DRIVER_APPROVAL`, se actualiza `confirmedAt` y se borra `driverRejectionReason`.
 
 > Si se envía `items`, **reemplaza todos los ítems existentes** por los nuevos.
 
@@ -227,52 +229,60 @@ Devuelve el control actualizado con el mismo formato que la creación.
 
 ### Errores
 
-**`409 Conflict`** — control no modificable (ya fue confirmado u otro estado)
+**`409 Conflict`** — control no modificable (el repartidor ya lo aceptó o ya se envió a Aguas)
 ```json
 {
   "status": 409,
   "error": "Conflict",
-  "message": "Stock control uuid no puede modificarse en estado: PENDING_DRIVER_APPROVAL"
+  "message": "Stock control uuid cannot be modified in status: SENT_TO_AGUAS"
 }
 ```
 
 ---
 
-## Confirmar control
+## Rechazar control (repartidor)
 
 ```
-POST /stock-controls/{id}/confirm
+POST /stock-controls/{id}/reject
 Authorization: Bearer <token>
 ```
 
-Transiciona el control de `CONTROLLED` a `PENDING_DRIVER_APPROVAL`. A partir de este momento el repartidor puede verlo y aprobarlo o rechazarlo.
+Los controles de entrada (`ENTRY`) se crean en `PENDING_DRIVER_APPROVAL`: el repartidor los ve en la app y los acepta (`POST /{id}/approve`, ver [DRIVER_FLOW.md](./DRIVER_FLOW.md)) o los rechaza con este endpoint. Rechazar pasa el control a `REJECTED_BY_DRIVER` y guarda el motivo; **no se envía nada a Aguas**.
 
-No requiere body.
+Después el controlador lo corrige con [Actualizar control](#actualizar-control): al guardarlo vuelve a `PENDING_DRIVER_APPROVAL` y le aparece de nuevo al repartidor. Recién cuando el repartidor lo acepta se envía a Aguas.
+
+### Request body
+
+```json
+{ "reason": "Faltan 2 bidones de 20L" }
+```
+
+| Campo    | Tipo   | Requerido | Descripción |
+|----------|--------|-----------|-------------|
+| `reason` | string | **Sí**    | Motivo del rechazo (máx. 500 caracteres). Se devuelve en `driverRejectionReason` mientras el control siga rechazado y queda en la auditoría |
 
 ### Response `200 OK`
 
-```json
-{
-  "data": {
-    "id": "uuid-del-control",
-    "status": "PENDING_DRIVER_APPROVAL",
-    "confirmedAt": "2026-06-24T14:22:00",
-    ...
-  },
-  "message": "Stock control confirmed successfully"
-}
-```
+Devuelve el control con `status: "REJECTED_BY_DRIVER"` y `driverRejectionReason` cargado.
 
 ### Errores
 
-**`409 Conflict`** — el control no está en estado `CONTROLLED`
+**`400 Bad Request`** — falta `reason` o supera 500 caracteres
+
+**`404 Not Found`** — control no encontrado
+
+**`409 Conflict`** — el control no está en `PENDING_DRIVER_APPROVAL`
 ```json
 {
   "status": 409,
   "error": "Conflict",
-  "message": "Stock control uuid debe estar en estado CONTROLLED pero está en: PENDING_DRIVER_APPROVAL"
+  "message": "Stock control uuid must be in status PENDING_DRIVER_APPROVAL but was ACCEPTED_BY_DRIVER"
 }
 ```
+
+### Auditoría
+
+Cada rechazo queda en `GET /audit-logs` con `action: REJECT_STOCK_CONTROL`, el usuario que rechazó y el motivo en `reason`. Las correcciones del controlador quedan como `UPDATE_STOCK_CONTROL` con el antes y el después.
 
 ---
 
@@ -436,10 +446,10 @@ El navegador lo abre directo (se puede ver o guardar desde ahí). El PDF incluye
 
 | Estado                   | Descripción                                              |
 |--------------------------|----------------------------------------------------------|
-| `CONTROLLED`             | Creado, aún modificable                                  |
-| `PENDING_DRIVER_APPROVAL`| Confirmado por el controlador, esperando al repartidor   |
+| `CONTROLLED`             | Salida recién creada, antes de enviarse a Aguas          |
+| `PENDING_DRIVER_APPROVAL`| Entrada esperando la conformidad del repartidor          |
 | `ACCEPTED_BY_DRIVER`     | Aprobado por el repartidor                               |
-| `REJECTED_BY_DRIVER`     | Rechazado por el repartidor                              |
+| `REJECTED_BY_DRIVER`     | Entrada rechazada por el repartidor, a corregir          |
 | `WITH_DIFFERENCES`       | Aprobado con diferencias registradas                     |
 | `SENT_TO_AGUAS`          | Enviado al sistema Aguas                                 |
 | `AGUAS_ERROR`            | Error al enviar a Aguas                                  |
@@ -448,11 +458,17 @@ El navegador lo abre directo (se puede ver o guardar desde ahí). El PDF incluye
 ### Flujo de estados
 
 ```
-CONTROLLED
-    └─► PENDING_DRIVER_APPROVAL  (POST /confirm)
-            ├─► ACCEPTED_BY_DRIVER
-            └─► REJECTED_BY_DRIVER
+Salida (EXIT):
+CONTROLLED ─► SENT_TO_AGUAS | AGUAS_ERROR        (se envía a Aguas al crearse)
+
+Entrada (ENTRY):
+PENDING_DRIVER_APPROVAL  (al crearse)
+    ├─► ACCEPTED_BY_DRIVER ─► SENT_TO_AGUAS | AGUAS_ERROR   (POST /approve)
+    └─► REJECTED_BY_DRIVER                                   (POST /reject, con motivo)
+            └─► PENDING_DRIVER_APPROVAL                      (PATCH: el controlador corrige y reenvía)
 ```
+
+> Mientras el control está `PENDING_DRIVER_APPROVAL` o `REJECTED_BY_DRIVER` vive solo en Loop: el controlador puede modificarlo (`PATCH`) y nada se manda a Aguas hasta que el repartidor lo acepta.
 
 > Para controles `ENTRY`, una vez en `SENT_TO_AGUAS` o `AGUAS_ERROR`, un `SUPERVISOR` puede volver a corregirlos con `POST /{id}/correct` (ver [Corregir control](#corregir-control-supervisor)). El control permanece en `SENT_TO_AGUAS` (o pasa a `AGUAS_ERROR` si el reenvío falla), no hay un estado nuevo — solo se actualizan sus datos y se reenvía a Aguas.
 
@@ -468,6 +484,7 @@ CONTROLLED
 | `routeId`      | UUID      | ID del reparto                                      |
 | `routeCode`    | string    | Código del reparto                                  |
 | `controllerId` | UUID      | ID del controlador (puede ser `null`)               |
+| `driverRejectionReason` | string | Motivo del rechazo del repartidor; solo mientras está `REJECTED_BY_DRIVER` |
 | `controlDate`  | date      | Fecha del control                                   |
 | `truckOrdered` | boolean   | Si el camión está ordenado                          |
 | `observations` | string    | Observaciones generales (puede ser `null`)          |

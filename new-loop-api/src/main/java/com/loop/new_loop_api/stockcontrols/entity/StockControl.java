@@ -63,6 +63,10 @@ public class StockControl {
     private LocalDateTime confirmedAt;
     private LocalDateTime approvedAt;
 
+    // Why the driver rejected the control; only set while the control is REJECTED_BY_DRIVER.
+    @Column(name = "driver_rejection_reason", length = 500)
+    private String driverRejectionReason;
+
     // Returned by Aguas when the control is sent, needed to generate the digital remito later.
     @Column(name = "aguas_formulario", length = 50)
     private String aguasFormulario;

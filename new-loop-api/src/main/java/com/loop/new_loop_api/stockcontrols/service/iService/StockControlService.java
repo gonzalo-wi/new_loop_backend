@@ -3,6 +3,7 @@ package com.loop.new_loop_api.stockcontrols.service.iService;
 import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
 import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.dto.RejectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
@@ -20,6 +21,7 @@ public interface StockControlService {
     StockControlResponse getControlById(UUID id);
     StockControlResponse updateControl(UUID id, UpdateStockControlRequest request);
     StockControlResponse approveControl(UUID id);
+    StockControlResponse rejectControl(UUID id, RejectStockControlRequest request);
     StockControlResponse correctControl(UUID id, CorrectStockControlRequest request);
     ArrivalsSummaryResponse getPendingArrivals(LocalDate date, UUID branchId);
     byte[] generateRemitoPdf(UUID id);

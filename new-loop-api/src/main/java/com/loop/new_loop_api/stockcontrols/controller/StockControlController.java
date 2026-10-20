@@ -4,6 +4,7 @@ import com.loop.new_loop_api.common.response.ApiResponse;
 import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
 import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.dto.RejectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
@@ -36,6 +37,7 @@ public class StockControlController {
     private static final String RETRIEVED_MESSAGE         = "Stock control retrieved successfully";
     private static final String UPDATED_MESSAGE           = "Stock control updated successfully";
     private static final String APPROVED_MESSAGE          = "Stock control approved successfully";
+    private static final String REJECTED_MESSAGE          = "Stock control rejected successfully";
     private static final String CORRECTED_MESSAGE         = "Stock control corrected successfully";
 
     private final StockControlService stockControlService;
@@ -111,6 +113,14 @@ public class StockControlController {
     public ResponseEntity<ApiResponse<StockControlResponse>> approveControl(@PathVariable UUID id) {
         var response = stockControlService.approveControl(id);
         return ResponseEntity.ok(ApiResponse.ok(response, APPROVED_MESSAGE));
+    }
+
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<StockControlResponse>> rejectControl(
+            @PathVariable UUID id,
+            @Valid @RequestBody RejectStockControlRequest request) {
+        var response = stockControlService.rejectControl(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(response, REJECTED_MESSAGE));
     }
 
     @PostMapping("/{id}/correct")

@@ -4,7 +4,9 @@ import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
 import com.loop.new_loop_api.stockcontrols.entity.ControlType;
 import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import org.springframework.data.jpa.repository.JpaRepository;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,6 +17,14 @@ import java.util.Set;
 import java.util.UUID;
 
 public interface StockControlRepository extends JpaRepository<StockControl, UUID>, JpaSpecificationExecutor<StockControl> {
+
+    /**
+     * Locks the row until the transaction ends, so the controller's edit and the driver's approve/reject
+     * run one after the other: otherwise an edit could overwrite an approval already sent to Aguas.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select sc from StockControl sc where sc.id = :id")
+    Optional<StockControl> findByIdForUpdate(@Param("id") UUID id);
 
     boolean existsByTypeAndRouteIdAndControlDateAndStatusNot(
             ControlType type, UUID routeId, LocalDate controlDate, ControlStatus status);

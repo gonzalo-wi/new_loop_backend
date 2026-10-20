@@ -50,6 +50,7 @@ public class StockControlMapper {
                 .items(items)
                 .confirmedAt(control.getConfirmedAt())
                 .approvedAt(control.getApprovedAt())
+                .driverRejectionReason(control.getDriverRejectionReason())
                 .aguasFormulario(control.getAguasFormulario())
                 .aguasNroRemito(control.getAguasNroRemito())
                 .createdAt(control.getCreatedAt())

@@ -254,7 +254,9 @@ GET /stock-controls?type=EXIT&from=2026-06-01&routeId=... → combinados
 
 ### PATCH /stock-controls/{id}
 
-Modifica un control existente. Solo se permiten cambios si el control está en estado `CONTROLLED`.
+Modifica un control existente. Solo se permiten cambios mientras el repartidor no lo aceptó: estados `CONTROLLED`, `PENDING_DRIVER_APPROVAL` o `REJECTED_BY_DRIVER`. Hasta ese momento nada se manda a Aguas.
+
+Si el control estaba `REJECTED_BY_DRIVER`, guardarlo lo **reenvía al repartidor**: vuelve a `PENDING_DRIVER_APPROVAL`, se actualiza `confirmedAt` y se borra `driverRejectionReason`.
 
 Todos los campos son opcionales. Si `items` se envía, **reemplaza toda la lista** de productos del control.
 
@@ -300,33 +302,45 @@ Todos los campos son opcionales. Si `items` se envía, **reemplaza toda la lista
 
 ---
 
-### POST /stock-controls/{id}/confirm
+### POST /stock-controls/{id}/approve
 
-Confirma un control de salida. Cambia el estado a `PENDING_DRIVER_APPROVAL` y registra la fecha/hora de confirmación. A partir de este momento el repartidor puede visualizarlo y aceptarlo desde la app.
+El repartidor acepta un control de entrada. Pasa de `PENDING_DRIVER_APPROVAL` a `ACCEPTED_BY_DRIVER`, registra `approvedAt` y recién ahí se envía a Aguas (en segundo plano).
 
 **Body:** ninguno.
-
-**Respuesta 200:**
-
-```json
-{
-  "data": {
-    "id": "883b1700-h52e-74g7-d049-779988773333",
-    "type": "EXIT",
-    "status": "PENDING_DRIVER_APPROVAL",
-    "confirmedAt": "2026-06-24T14:30:00",
-    "..."
-  },
-  "message": "Stock control confirmed successfully"
-}
-```
 
 **Errores:**
 
 | Status | Situación | `message` |
 |--------|-----------|-----------|
 | 404    | No encontrado | `"Stock control not found with id: <id>"` |
-| 409    | Estado inválido | `"Stock control <id> must be in status CONTROLLED but was <status>"` |
+| 409    | Estado inválido | `"Stock control <id> must be in status PENDING_DRIVER_APPROVAL but was <status>"` |
+
+---
+
+### POST /stock-controls/{id}/reject
+
+El repartidor rechaza un control de entrada que espera su conformidad. Pasa de `PENDING_DRIVER_APPROVAL` a `REJECTED_BY_DRIVER` y guarda el motivo en `driverRejectionReason`. No se envía nada a Aguas: el controlador lo corrige con `PATCH /stock-controls/{id}`, que lo vuelve a mandar al repartidor.
+
+**Body:**
+
+```json
+{ "reason": "Faltan 2 bidones de 20L" }
+```
+
+| Campo    | Tipo   | Requerido | Notas |
+|----------|--------|-----------|-------|
+| `reason` | string | Sí        | Máx 500 caracteres. Queda en el control y en la auditoría (`REJECT_STOCK_CONTROL`) |
+
+**Respuesta 200:** objeto `StockControlResponse` con `status: "REJECTED_BY_DRIVER"` dentro de `data`.
+
+**Errores:**
+
+| Status | Situación | `message` |
+|--------|-----------|-----------|
+| 400    | Falta el motivo | `"Reason is required"` |
+| 400    | Motivo de más de 500 caracteres | `"Reason cannot exceed 500 characters"` |
+| 404    | No encontrado | `"Stock control not found with id: <id>"` |
+| 409    | Estado inválido | `"Stock control <id> must be in status PENDING_DRIVER_APPROVAL but was <status>"` |
 
 ---
 
@@ -361,7 +375,9 @@ Obtiene un control por ID con el detalle completo de sus items.
 | `controlDate`  | date     | Fecha para la que aplica el control (`YYYY-MM-DD`) |
 | `observations`| string   | Observaciones generales |
 | `items`       | array    | Detalle por producto |
-| `confirmedAt` | datetime | Fecha/hora de confirmación. `null` hasta que se confirme. |
+| `confirmedAt` | datetime | Fecha/hora en que se mandó al repartidor (se actualiza en cada reenvío). |
+| `approvedAt`  | datetime | Fecha/hora en que el repartidor lo aceptó. |
+| `driverRejectionReason` | string | Motivo del rechazo del repartidor. Solo viene mientras el control está `REJECTED_BY_DRIVER`; si no, `null`. |
 | `createdAt`   | datetime | Fecha/hora de creación |
 | `updatedAt`   | datetime | Fecha/hora de última modificación |
 
@@ -389,8 +405,9 @@ Obtiene un control por ID con el detalle completo de sus items.
 | POST   | `/stock-controls`      | Crear control (EXIT o ENTRY) |
 | GET    | `/stock-controls`      | Listar controles paginados |
 | GET    | `/stock-controls/{id}` | Obtener control por ID |
-| PATCH  | `/stock-controls/{id}`         | Modificar control (solo en estado CONTROLLED) |
-| POST   | `/stock-controls/{id}/confirm` | Confirmar control → pasa a PENDING_DRIVER_APPROVAL |
+| PATCH  | `/stock-controls/{id}`         | Modificar control (antes de que el repartidor lo acepte; si estaba rechazado, lo reenvía) |
+| POST   | `/stock-controls/{id}/approve` | El repartidor acepta → ACCEPTED_BY_DRIVER y se envía a Aguas |
+| POST   | `/stock-controls/{id}/reject`  | El repartidor rechaza con motivo → REJECTED_BY_DRIVER |
 
 ---
 

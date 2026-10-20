@@ -18,6 +18,7 @@ import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
 import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlItemRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.dto.RejectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
@@ -67,7 +68,12 @@ public class StockControlServiceImpl implements StockControlService {
 
     private static final Set<Role> CORRECTION_ROLES = Set.of(Role.SUPERVISOR, Role.ADMIN);
 
+    // The controller can still change a control until the driver accepts it; after that it belongs to Aguas.
+    private static final Set<ControlStatus> MODIFIABLE_STATUSES = Set.of(
+            ControlStatus.CONTROLLED, ControlStatus.PENDING_DRIVER_APPROVAL, ControlStatus.REJECTED_BY_DRIVER);
+
     private static final String CORRECT_STOCK_CONTROL_ACTION = "CORRECT_STOCK_CONTROL";
+    private static final String REJECT_STOCK_CONTROL_ACTION  = "REJECT_STOCK_CONTROL";
     // Partial unique index from V30; must match the migration's name.
     private static final String ACTIVE_CONTROL_UNIQUE_INDEX  = "uq_stock_controls_type_route_date_active";
 
@@ -130,9 +136,8 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional
     public StockControlResponse updateControl(UUID id, UpdateStockControlRequest request) {
-        var control = findControlById(id);
-        if (control.getStatus() != ControlStatus.CONTROLLED
-                && control.getStatus() != ControlStatus.PENDING_DRIVER_APPROVAL) {
+        var control = findControlByIdForUpdate(id);
+        if (!MODIFIABLE_STATUSES.contains(control.getStatus())) {
             throw new StockControlNotModifiableException(id, control.getStatus());
         }
         var oldValue = stockControlMapper.toResponse(control);
@@ -140,6 +145,9 @@ public class StockControlServiceImpl implements StockControlService {
         stockControlMapper.updateEntity(request, control);
         if (request.getItems() != null) {
             replaceItems(control, request.getItems());
+        }
+        if (control.getStatus() == ControlStatus.REJECTED_BY_DRIVER) {
+            sendBackToDriver(control);
         }
         var saved    = saveAndFlushControl(control);
         var response = stockControlMapper.toResponse(saved);
@@ -150,7 +158,7 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional
     public StockControlResponse approveControl(UUID id) {
-        var control = findControlById(id);
+        var control = findControlByIdForUpdate(id);
         if (control.getStatus() != ControlStatus.PENDING_DRIVER_APPROVAL) {
             throw new InvalidControlStatusException(id, ControlStatus.PENDING_DRIVER_APPROVAL, control.getStatus());
         }
@@ -160,6 +168,21 @@ public class StockControlServiceImpl implements StockControlService {
         var response = stockControlMapper.toResponse(saved);
         auditService.register("APPROVE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
         eventPublisher.publishEvent(new StockControlReadyForAguasEvent(saved.getId()));
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public StockControlResponse rejectControl(UUID id, RejectStockControlRequest request) {
+        var control = findControlByIdForUpdate(id);
+        if (control.getStatus() != ControlStatus.PENDING_DRIVER_APPROVAL) {
+            throw new InvalidControlStatusException(id, ControlStatus.PENDING_DRIVER_APPROVAL, control.getStatus());
+        }
+        control.setStatus(ControlStatus.REJECTED_BY_DRIVER);
+        control.setDriverRejectionReason(request.getReason().trim());
+        var saved    = stockControlRepository.save(control);
+        var response = stockControlMapper.toResponse(saved);
+        auditService.register(REJECT_STOCK_CONTROL_ACTION, "StockControl", saved.getId(), null, response, control.getDriverRejectionReason());
         return response;
     }
 
@@ -226,6 +249,13 @@ public class StockControlServiceImpl implements StockControlService {
             throw new RemitoNotAvailableException(control.getId(), "the control has not been confirmed with Aguas yet");
         }
         return remitoPdfGenerator.generate(control);
+    }
+
+    /** A corrected rejection goes back to the driver's pending list; the reason lives on in the audit log. */
+    private void sendBackToDriver(StockControl control) {
+        control.setStatus(ControlStatus.PENDING_DRIVER_APPROVAL);
+        control.setConfirmedAt(LocalDateTime.now());
+        control.setDriverRejectionReason(null);
     }
 
     private void assertCurrentUserCanCorrect() {
@@ -300,6 +330,11 @@ public class StockControlServiceImpl implements StockControlService {
 
     private StockControl findControlById(UUID id) {
         return stockControlRepository.findById(id)
+                .orElseThrow(() -> new StockControlNotFoundException(id));
+    }
+
+    private StockControl findControlByIdForUpdate(UUID id) {
+        return stockControlRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new StockControlNotFoundException(id));
     }
 

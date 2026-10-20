@@ -28,6 +28,7 @@ public class StockControlResponse {
     private List<StockControlItemResponse> items;
     private LocalDateTime                  confirmedAt;
     private LocalDateTime                  approvedAt;
+    private String                         driverRejectionReason;
     private String                         aguasFormulario;
     private Long                           aguasNroRemito;
     private LocalDateTime                  createdAt;

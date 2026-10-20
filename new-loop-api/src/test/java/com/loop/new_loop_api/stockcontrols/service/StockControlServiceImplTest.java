@@ -11,15 +11,20 @@ import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.routes.repository.RouteRepository;
 import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlItemRequest;
+import com.loop.new_loop_api.stockcontrols.dto.RejectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
+import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
 import com.loop.new_loop_api.stockcontrols.entity.ControlType;
 import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
 import com.loop.new_loop_api.stockcontrols.event.StockControlCorrectedEvent;
+import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
 import com.loop.new_loop_api.stockcontrols.exception.CorrectionNotAllowedException;
+import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotCorrectableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotFoundException;
+import com.loop.new_loop_api.stockcontrols.exception.StockControlNotModifiableException;
 import com.loop.new_loop_api.stockcontrols.mapper.StockControlMapper;
 import com.loop.new_loop_api.stockcontrols.pdf.RemitoPdfGenerator;
 import com.loop.new_loop_api.stockcontrols.repository.StockControlRepository;
@@ -236,5 +241,151 @@ class StockControlServiceImplTest {
 
         verify(stockControlRepository, times(1)).save(existingControl);
         verify(aguasControlMetrics, times(1)).recordCorrected();
+    }
+
+    // 5. Driver rejection of an ENTRY waiting for the driver's check
+    private RejectStockControlRequest rejectRequest() {
+        var request = new RejectStockControlRequest();
+        request.setReason("Faltan 2 bidones de 20L");
+        return request;
+    }
+
+    @Test
+    void should_markControlRejectedAndAudit_when_driverRejectsPendingControl() {
+        var pending  = entryControl(ControlStatus.PENDING_DRIVER_APPROVAL);
+        var response = StockControlResponse.builder().id(controlId).status(ControlStatus.REJECTED_BY_DRIVER).build();
+        when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(pending));
+        when(stockControlRepository.save(pending)).thenReturn(pending);
+        when(stockControlMapper.toResponse(pending)).thenReturn(response);
+
+        var result = stockControlService.rejectControl(controlId, rejectRequest());
+
+        assertThat(result).isEqualTo(response);
+        assertThat(pending.getStatus()).isEqualTo(ControlStatus.REJECTED_BY_DRIVER);
+        assertThat(pending.getDriverRejectionReason()).isEqualTo("Faltan 2 bidones de 20L");
+        assertThat(pending.getApprovedAt()).isNull();
+        verify(auditService).register(
+                eq("REJECT_STOCK_CONTROL"), eq("StockControl"), eq(controlId),
+                eq(null), eq(response), eq("Faltan 2 bidones de 20L"));
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ControlStatus.class, names = {"PENDING_DRIVER_APPROVAL"}, mode = EnumSource.Mode.EXCLUDE)
+    void should_throwInvalidControlStatusException_when_rejectingControlNotPendingDriverApproval(ControlStatus status) {
+        var notPending = entryControl(status);
+        when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(notPending));
+
+        assertThatThrownBy(() -> stockControlService.rejectControl(controlId, rejectRequest()))
+                .isInstanceOf(InvalidControlStatusException.class);
+
+        assertThat(notPending.getStatus()).isEqualTo(status);
+        verify(stockControlRepository, never()).save(any());
+        verify(auditService, never()).register(any(), any(), any(), any(), any(), any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void should_storeTrimmedReason_when_driverRejectsWithSurroundingSpaces() {
+        var pending = entryControl(ControlStatus.PENDING_DRIVER_APPROVAL);
+        when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(pending));
+        when(stockControlRepository.save(pending)).thenReturn(pending);
+        var request = new RejectStockControlRequest();
+        request.setReason("  Faltan bidones  ");
+
+        stockControlService.rejectControl(controlId, request);
+
+        assertThat(pending.getDriverRejectionReason()).isEqualTo("Faltan bidones");
+    }
+
+    @Test
+    void should_throwStockControlNotFoundException_when_rejectingMissingControl() {
+        when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> stockControlService.rejectControl(controlId, rejectRequest()))
+                .isInstanceOf(StockControlNotFoundException.class);
+    }
+
+    // 6. Controller edits before the driver's check
+    private StockControl stubUpdatableControl(ControlStatus status) {
+        var existing = entryControl(status);
+        when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(existing));
+        when(stockControlRepository.saveAndFlush(existing)).thenReturn(existing);
+        when(stockControlMapper.toResponse(existing)).thenReturn(StockControlResponse.builder().id(controlId).build());
+        return existing;
+    }
+
+    @Test
+    void should_sendControlBackToDriver_when_controllerUpdatesRejectedControl() {
+        var rejected = stubUpdatableControl(ControlStatus.REJECTED_BY_DRIVER);
+        rejected.setDriverRejectionReason("Faltan 2 bidones de 20L");
+
+        stockControlService.updateControl(controlId, new UpdateStockControlRequest());
+
+        assertThat(rejected.getStatus()).isEqualTo(ControlStatus.PENDING_DRIVER_APPROVAL);
+        assertThat(rejected.getDriverRejectionReason()).isNull();
+        assertThat(rejected.getConfirmedAt()).isNotNull();
+        verify(auditService).register(eq("UPDATE_STOCK_CONTROL"), eq("StockControl"), eq(controlId), any(), any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void should_keepControlPendingWithoutSendingToAguas_when_controllerUpdatesPendingControl() {
+        var pending = stubUpdatableControl(ControlStatus.PENDING_DRIVER_APPROVAL);
+
+        stockControlService.updateControl(controlId, new UpdateStockControlRequest());
+
+        assertThat(pending.getStatus()).isEqualTo(ControlStatus.PENDING_DRIVER_APPROVAL);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void should_keepStatusControlled_when_controllerUpdatesControlledControl() {
+        var controlled = stubUpdatableControl(ControlStatus.CONTROLLED);
+
+        stockControlService.updateControl(controlId, new UpdateStockControlRequest());
+
+        assertThat(controlled.getStatus()).isEqualTo(ControlStatus.CONTROLLED);
+        assertThat(controlled.getConfirmedAt()).isNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ControlStatus.class,
+            names = {"CONTROLLED", "PENDING_DRIVER_APPROVAL", "REJECTED_BY_DRIVER"}, mode = EnumSource.Mode.EXCLUDE)
+    void should_throwStockControlNotModifiableException_when_updatingControlPastDriverCheck(ControlStatus status) {
+        when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(entryControl(status)));
+
+        assertThatThrownBy(() -> stockControlService.updateControl(controlId, new UpdateStockControlRequest()))
+                .isInstanceOf(StockControlNotModifiableException.class);
+
+        verify(stockControlRepository, never()).saveAndFlush(any());
+    }
+
+    // 7. Driver approval, locked against a concurrent edit by the controller
+    @Test
+    void should_acceptControlAndSendToAguas_when_driverApprovesPendingControl() {
+        var pending = entryControl(ControlStatus.PENDING_DRIVER_APPROVAL);
+        when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(pending));
+        when(stockControlRepository.save(pending)).thenReturn(pending);
+
+        stockControlService.approveControl(controlId);
+
+        assertThat(pending.getStatus()).isEqualTo(ControlStatus.ACCEPTED_BY_DRIVER);
+        assertThat(pending.getApprovedAt()).isNotNull();
+        var eventCaptor = ArgumentCaptor.forClass(StockControlReadyForAguasEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().controlId()).isEqualTo(controlId);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ControlStatus.class, names = {"PENDING_DRIVER_APPROVAL"}, mode = EnumSource.Mode.EXCLUDE)
+    void should_throwInvalidControlStatusException_when_approvingControlNotPendingDriverApproval(ControlStatus status) {
+        when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(entryControl(status)));
+
+        assertThatThrownBy(() -> stockControlService.approveControl(controlId))
+                .isInstanceOf(InvalidControlStatusException.class);
+
+        verify(stockControlRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }
