@@ -27,6 +27,7 @@ import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
 import com.loop.new_loop_api.stockcontrols.event.StockControlCorrectedEvent;
 import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
+import com.loop.new_loop_api.stockcontrols.exception.ControlEditNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.CorrectionNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.DuplicateControlException;
 import com.loop.new_loop_api.stockcontrols.exception.ExitControlNotFoundException;
@@ -67,6 +68,9 @@ public class StockControlServiceImpl implements StockControlService {
             Set.of(ControlStatus.SENT_TO_AGUAS, ControlStatus.AGUAS_ERROR);
 
     private static final Set<Role> CORRECTION_ROLES = Set.of(Role.SUPERVISOR, Role.ADMIN);
+
+    // The driver is the one checking the control, so they must never be able to change its numbers.
+    private static final Set<Role> EDIT_ROLES = Set.of(Role.CONTROLADOR, Role.SUPERVISOR, Role.ADMIN);
 
     // The controller can still change a control until the driver accepts it; after that it belongs to Aguas.
     private static final Set<ControlStatus> MODIFIABLE_STATUSES = Set.of(
@@ -136,6 +140,7 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional
     public StockControlResponse updateControl(UUID id, UpdateStockControlRequest request) {
+        assertCurrentUserCanEdit();
         var control = findControlByIdForUpdate(id);
         if (!MODIFIABLE_STATUSES.contains(control.getStatus())) {
             throw new StockControlNotModifiableException(id, control.getStatus());
@@ -256,6 +261,15 @@ public class StockControlServiceImpl implements StockControlService {
         control.setStatus(ControlStatus.PENDING_DRIVER_APPROVAL);
         control.setConfirmedAt(LocalDateTime.now());
         control.setDriverRejectionReason(null);
+    }
+
+    private void assertCurrentUserCanEdit() {
+        var canEdit = currentUserProvider.current()
+                .map(user -> EDIT_ROLES.contains(user.role()))
+                .orElse(false);
+        if (!canEdit) {
+            throw new ControlEditNotAllowedException();
+        }
     }
 
     private void assertCurrentUserCanCorrect() {

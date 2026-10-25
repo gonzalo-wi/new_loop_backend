@@ -20,6 +20,7 @@ import com.loop.new_loop_api.stockcontrols.entity.StockControl;
 import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
 import com.loop.new_loop_api.stockcontrols.event.StockControlCorrectedEvent;
 import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
+import com.loop.new_loop_api.stockcontrols.exception.ControlEditNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.CorrectionNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotCorrectableException;
@@ -308,6 +309,11 @@ class StockControlServiceImplTest {
 
     // 6. Controller edits before the driver's check
     private StockControl stubUpdatableControl(ControlStatus status) {
+        return stubUpdatableControl(status, Role.CONTROLADOR);
+    }
+
+    private StockControl stubUpdatableControl(ControlStatus status, Role editorRole) {
+        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(editorRole)));
         var existing = entryControl(status);
         when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(existing));
         when(stockControlRepository.saveAndFlush(existing)).thenReturn(existing);
@@ -353,10 +359,46 @@ class StockControlServiceImplTest {
     @EnumSource(value = ControlStatus.class,
             names = {"CONTROLLED", "PENDING_DRIVER_APPROVAL", "REJECTED_BY_DRIVER"}, mode = EnumSource.Mode.EXCLUDE)
     void should_throwStockControlNotModifiableException_when_updatingControlPastDriverCheck(ControlStatus status) {
+        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(Role.CONTROLADOR)));
         when(stockControlRepository.findByIdForUpdate(controlId)).thenReturn(Optional.of(entryControl(status)));
 
         assertThatThrownBy(() -> stockControlService.updateControl(controlId, new UpdateStockControlRequest()))
                 .isInstanceOf(StockControlNotModifiableException.class);
+
+        verify(stockControlRepository, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"SUPERVISOR", "ADMIN"})
+    void should_sendControlBackToDriver_when_supervisorOrAdminUpdatesRejectedControl(Role role) {
+        var rejected = stubUpdatableControl(ControlStatus.REJECTED_BY_DRIVER, role);
+
+        stockControlService.updateControl(controlId, new UpdateStockControlRequest());
+
+        assertThat(rejected.getStatus()).isEqualTo(ControlStatus.PENDING_DRIVER_APPROVAL);
+    }
+
+    // The driver checks the control; letting them edit it would let them approve their own numbers.
+    @ParameterizedTest
+    @EnumSource(value = ControlStatus.class,
+            names = {"CONTROLLED", "PENDING_DRIVER_APPROVAL", "REJECTED_BY_DRIVER"})
+    void should_throwControlEditNotAllowedException_when_driverUpdatesControl(ControlStatus status) {
+        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(Role.REPARTIDOR)));
+
+        assertThatThrownBy(() -> stockControlService.updateControl(controlId, new UpdateStockControlRequest()))
+                .isInstanceOf(ControlEditNotAllowedException.class);
+
+        verify(stockControlRepository, never()).findByIdForUpdate(any());
+        verify(stockControlRepository, never()).saveAndFlush(any());
+        verify(auditService, never()).register(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void should_throwControlEditNotAllowedException_when_noAuthenticatedUserUpdatesControl() {
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> stockControlService.updateControl(controlId, new UpdateStockControlRequest()))
+                .isInstanceOf(ControlEditNotAllowedException.class);
 
         verify(stockControlRepository, never()).saveAndFlush(any());
     }
