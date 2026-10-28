@@ -13,6 +13,7 @@ import com.loop.new_loop_api.integrations.aguas.mapper.AguasEquipmentMapper;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import feign.Request;
 import feign.Response;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +47,7 @@ class AguasEquipmentServiceImplTest {
     @Mock private ApplicationEventPublisher   eventPublisher;
     @Mock private DispenserMovementMetrics    dispenserMovementMetrics;
     @Mock private IntegrationCallMetrics      integrationCallMetrics;
+    @Mock private OperationEventRecorder      operationEventRecorder;
 
     private AguasEquipmentServiceImpl aguasEquipmentService;
 
@@ -56,7 +59,7 @@ class AguasEquipmentServiceImplTest {
         aguasEquipmentService = new AguasEquipmentServiceImpl(
                 dispenserMovementRepository, integrationLogRepository, aguasEquipmentClient,
                 aguasEquipmentMapper, new ObjectMapper(), auditService, eventPublisher,
-                dispenserMovementMetrics, integrationCallMetrics);
+                dispenserMovementMetrics, integrationCallMetrics, operationEventRecorder);
 
         movementId = UUID.randomUUID();
         movement = DispenserMovement.builder()
@@ -107,6 +110,7 @@ class AguasEquipmentServiceImplTest {
 
         verify(dispenserMovementMetrics).recordSent(DispenserMovementType.LOAD);
         verify(integrationCallMetrics).recordSuccess(IntegrationName.AGUAS);
+        verify(operationEventRecorder, never()).integrationError(any(), any(DispenserMovement.class));
         verify(dispenserMovementMetrics, never()).recordRejected(any());
         // LOAD movements are now forwarded to Odoo too (dispatch/salida to reparto).
         verify(eventPublisher).publishEvent(any(Object.class));
@@ -144,6 +148,7 @@ class AguasEquipmentServiceImplTest {
         assertThat(movement.getStatus()).isEqualTo(DispenserMovementStatus.AGUAS_ERROR);
         verify(dispenserMovementMetrics).recordRejected(DispenserMovementType.LOAD);
         verify(integrationCallMetrics).recordError(IntegrationName.AGUAS);
+        verify(operationEventRecorder).integrationError(eq(IntegrationName.AGUAS), any(DispenserMovement.class));
         verify(dispenserMovementMetrics, never()).recordSent(any());
     }
 

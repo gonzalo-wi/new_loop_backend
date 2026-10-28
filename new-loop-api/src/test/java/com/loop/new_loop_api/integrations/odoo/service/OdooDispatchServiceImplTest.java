@@ -12,6 +12,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.integrations.odoo.mapper.OdooDispatchMapper;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +31,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -61,6 +63,7 @@ class OdooDispatchServiceImplTest {
     @Mock private IntegrationLogRepository    integrationLogRepository;
     @Mock private AuditService                auditService;
     @Mock private IntegrationCallMetrics      integrationCallMetrics;
+    @Mock private OperationEventRecorder      operationEventRecorder;
 
     private OdooDispatchServiceImpl service;
     private MockRestServiceServer   server;
@@ -76,7 +79,7 @@ class OdooDispatchServiceImplTest {
 
         service = new OdooDispatchServiceImpl(
                 dispenserMovementRepository, integrationLogRepository,
-                new OdooDispatchMapper(), new ObjectMapper(), auditService, integrationCallMetrics);
+                new OdooDispatchMapper(), new ObjectMapper(), auditService, integrationCallMetrics, operationEventRecorder);
 
         ReflectionTestUtils.setField(service, "restClient", boundClient);
         ReflectionTestUtils.setField(service, "baseUrl", BASE_URL);
@@ -124,6 +127,8 @@ class OdooDispatchServiceImplTest {
         assertThat(logCaptor.getValue().getErrorMessage()).isNull();
 
         verify(integrationCallMetrics).recordSuccess(IntegrationName.ODOO);
+
+        verify(operationEventRecorder, never()).integrationError(any(), any(DispenserMovement.class));
         verify(integrationCallMetrics, never()).recordError(any());
         verify(auditService).register(any(), any(), any(), any(), any());
     }
@@ -164,6 +169,7 @@ class OdooDispatchServiceImplTest {
         assertThat(logCaptor.getValue().getStatus()).isEqualTo(IntegrationStatus.SENT);
         assertThat(logCaptor.getValue().getErrorMessage()).isNull();
         verify(integrationCallMetrics).recordSuccess(IntegrationName.ODOO);
+        verify(operationEventRecorder, never()).integrationError(any(), any(DispenserMovement.class));
         verify(integrationCallMetrics, never()).recordError(any());
     }
 
@@ -199,6 +205,8 @@ class OdooDispatchServiceImplTest {
                 .contains("SN-2 (ya despachado)");
 
         verify(integrationCallMetrics).recordError(IntegrationName.ODOO);
+
+        verify(operationEventRecorder).integrationError(eq(IntegrationName.ODOO), any(DispenserMovement.class));
         verify(integrationCallMetrics, never()).recordSuccess(any());
     }
 
@@ -237,6 +245,8 @@ class OdooDispatchServiceImplTest {
                 .doesNotContain("SN-1");
 
         verify(integrationCallMetrics).recordSuccess(IntegrationName.ODOO);
+
+        verify(operationEventRecorder, never()).integrationError(any(), any(DispenserMovement.class));
         verify(integrationCallMetrics, never()).recordError(any());
     }
 
@@ -295,6 +305,7 @@ class OdooDispatchServiceImplTest {
 
         assertThat(movement.getOdooStatus()).isEqualTo("ERROR");
         verify(integrationCallMetrics).recordError(IntegrationName.ODOO);
+        verify(operationEventRecorder).integrationError(eq(IntegrationName.ODOO), any(DispenserMovement.class));
     }
 
     // ---------- send() guards ----------

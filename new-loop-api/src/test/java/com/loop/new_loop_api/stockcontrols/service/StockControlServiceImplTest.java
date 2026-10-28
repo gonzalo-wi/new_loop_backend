@@ -6,10 +6,12 @@ import com.loop.new_loop_api.branches.repository.BranchRepository;
 import com.loop.new_loop_api.common.security.AuthenticatedUser;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
 import com.loop.new_loop_api.integrations.aguas.metrics.AguasControlMetrics;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import com.loop.new_loop_api.products.repository.ProductRepository;
 import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.routes.repository.RouteRepository;
 import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlItemRequest;
 import com.loop.new_loop_api.stockcontrols.dto.RejectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
@@ -21,6 +23,7 @@ import com.loop.new_loop_api.stockcontrols.entity.StockControlItem;
 import com.loop.new_loop_api.stockcontrols.event.StockControlCorrectedEvent;
 import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
 import com.loop.new_loop_api.stockcontrols.exception.ControlEditNotAllowedException;
+import com.loop.new_loop_api.stockcontrols.exception.DuplicateControlException;
 import com.loop.new_loop_api.stockcontrols.exception.CorrectionNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
 import com.loop.new_loop_api.stockcontrols.exception.RemitoNotAvailableException;
@@ -58,6 +61,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,6 +77,7 @@ class StockControlServiceImplTest {
     @Mock private RemitoPdfGenerator     remitoPdfGenerator;
     @Mock private CurrentUserProvider    currentUserProvider;
     @Mock private AguasControlMetrics    aguasControlMetrics;
+    @Mock private OperationEventRecorder operationEventRecorder;
 
     private StockControlServiceImpl stockControlService;
 
@@ -84,7 +89,7 @@ class StockControlServiceImplTest {
         stockControlService = new StockControlServiceImpl(
                 stockControlRepository, stockControlMapper, branchRepository, routeRepository,
                 productRepository, auditService, eventPublisher, remitoPdfGenerator, currentUserProvider,
-                aguasControlMetrics);
+                aguasControlMetrics, operationEventRecorder);
 
         controlId = UUID.randomUUID();
         control = entryControl(ControlStatus.SENT_TO_AGUAS);
@@ -138,6 +143,7 @@ class StockControlServiceImplTest {
         verify(stockControlRepository, never()).save(any());
         verify(auditService, never()).register(any(), any(), any(), any(), any(), any());
         verify(eventPublisher, never()).publishEvent(any());
+        verifyNoInteractions(operationEventRecorder);
         verify(aguasControlMetrics, never()).recordCorrected();
     }
 
@@ -249,6 +255,7 @@ class StockControlServiceImplTest {
 
         verify(stockControlRepository, times(1)).save(existingControl);
         verify(aguasControlMetrics, times(1)).recordCorrected();
+        verify(operationEventRecorder).controlCorrected(existingControl, request.getReason());
     }
 
     // 5. Driver rejection of an ENTRY waiting for the driver's check
@@ -276,6 +283,7 @@ class StockControlServiceImplTest {
                 eq("REJECT_STOCK_CONTROL"), eq("StockControl"), eq(controlId),
                 eq(null), eq(response), eq("Faltan 2 bidones de 20L"));
         verify(eventPublisher, never()).publishEvent(any());
+        verify(operationEventRecorder).controlRejected(pending);
     }
 
     @ParameterizedTest
@@ -288,9 +296,11 @@ class StockControlServiceImplTest {
                 .isInstanceOf(InvalidControlStatusException.class);
 
         assertThat(notPending.getStatus()).isEqualTo(status);
+        verifyNoInteractions(operationEventRecorder);
         verify(stockControlRepository, never()).save(any());
         verify(auditService, never()).register(any(), any(), any(), any(), any(), any());
         verify(eventPublisher, never()).publishEvent(any());
+        verifyNoInteractions(operationEventRecorder);
     }
 
     @Test
@@ -340,6 +350,7 @@ class StockControlServiceImplTest {
         assertThat(rejected.getConfirmedAt()).isNotNull();
         verify(auditService).register(eq("UPDATE_STOCK_CONTROL"), eq("StockControl"), eq(controlId), any(), any());
         verify(eventPublisher, never()).publishEvent(any());
+        verify(operationEventRecorder).controlEdited(rejected, true);
     }
 
     @Test
@@ -350,6 +361,7 @@ class StockControlServiceImplTest {
 
         assertThat(pending.getStatus()).isEqualTo(ControlStatus.PENDING_DRIVER_APPROVAL);
         verify(eventPublisher, never()).publishEvent(any());
+        verify(operationEventRecorder).controlEdited(pending, false);
     }
 
     @Test
@@ -373,6 +385,7 @@ class StockControlServiceImplTest {
                 .isInstanceOf(StockControlNotModifiableException.class);
 
         verify(stockControlRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(operationEventRecorder);
     }
 
     @ParameterizedTest
@@ -383,6 +396,7 @@ class StockControlServiceImplTest {
         stockControlService.updateControl(controlId, new UpdateStockControlRequest());
 
         assertThat(rejected.getStatus()).isEqualTo(ControlStatus.PENDING_DRIVER_APPROVAL);
+        verify(operationEventRecorder).controlEdited(rejected, true);
     }
 
     // The driver checks the control; letting them edit it would let them approve their own numbers.
@@ -424,6 +438,7 @@ class StockControlServiceImplTest {
         var eventCaptor = ArgumentCaptor.forClass(StockControlReadyForAguasEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         assertThat(eventCaptor.getValue().controlId()).isEqualTo(controlId);
+        verify(operationEventRecorder).controlApproved(pending);
     }
 
     @ParameterizedTest
@@ -436,6 +451,51 @@ class StockControlServiceImplTest {
 
         verify(stockControlRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
+        verifyNoInteractions(operationEventRecorder);
+    }
+
+    // 7b. Creation records the submitted control for operational metrics
+    private CreateStockControlRequest createRequest(StockControl control) {
+        var request = new CreateStockControlRequest();
+        request.setType(control.getType());
+        request.setBranchId(control.getBranch().getId());
+        request.setRouteId(control.getRoute().getId());
+        request.setControlDate(control.getControlDate());
+        request.setItems(List.of());
+        return request;
+    }
+
+    private void stubCreationLookups(StockControl control, boolean duplicate) {
+        when(branchRepository.findById(control.getBranch().getId())).thenReturn(Optional.of(control.getBranch()));
+        when(routeRepository.findById(control.getRoute().getId())).thenReturn(Optional.of(control.getRoute()));
+        when(stockControlRepository.existsByTypeAndRouteIdAndControlDateAndStatusNot(
+                control.getType(), control.getRoute().getId(), control.getControlDate(), ControlStatus.CANCELLED))
+                .thenReturn(duplicate);
+    }
+
+    @Test
+    void should_recordSubmittedControl_when_controlIsCreated() {
+        var created = entryControl(ControlStatus.CONTROLLED);
+        var request = createRequest(created);
+        stubCreationLookups(created, false);
+        when(stockControlMapper.toEntity(eq(request), any(), any(), any())).thenReturn(created);
+        when(productRepository.findByActiveTrue()).thenReturn(List.of());
+        when(stockControlRepository.saveAndFlush(created)).thenReturn(created);
+
+        stockControlService.createControl(request);
+
+        verify(operationEventRecorder).controlSubmitted(created);
+    }
+
+    @Test
+    void should_notRecordAnything_when_creationIsADuplicate() {
+        var duplicate = entryControl(ControlStatus.CONTROLLED);
+        stubCreationLookups(duplicate, true);
+
+        assertThatThrownBy(() -> stockControlService.createControl(createRequest(duplicate)))
+                .isInstanceOf(DuplicateControlException.class);
+
+        verifyNoInteractions(operationEventRecorder);
     }
 
     // 8. History: a controller only lists the controls they created

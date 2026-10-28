@@ -5,6 +5,7 @@ import com.loop.new_loop_api.common.exception.UniqueConstraintViolation;
 import com.loop.new_loop_api.common.security.AuthenticatedUser;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
 import com.loop.new_loop_api.integrations.aguas.metrics.AguasControlMetrics;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import com.loop.new_loop_api.users.entity.Role;
 import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.branches.exception.BranchNotFoundException;
@@ -92,6 +93,7 @@ public class StockControlServiceImpl implements StockControlService {
     private final RemitoPdfGenerator        remitoPdfGenerator;
     private final CurrentUserProvider       currentUserProvider;
     private final AguasControlMetrics       aguasControlMetrics;
+    private final OperationEventRecorder    operationEventRecorder;
 
     
     @Override
@@ -113,6 +115,7 @@ public class StockControlServiceImpl implements StockControlService {
         var saved    = saveAndFlushControl(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register("CREATE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
+        operationEventRecorder.controlSubmitted(saved);
         if (saved.getType() == ControlType.EXIT) {
             eventPublisher.publishEvent(new StockControlReadyForAguasEvent(saved.getId()));
         }
@@ -153,12 +156,14 @@ public class StockControlServiceImpl implements StockControlService {
         if (request.getItems() != null) {
             replaceItems(control, request.getItems());
         }
-        if (control.getStatus() == ControlStatus.REJECTED_BY_DRIVER) {
+        var resubmission = control.getStatus() == ControlStatus.REJECTED_BY_DRIVER;
+        if (resubmission) {
             sendBackToDriver(control);
         }
         var saved    = saveAndFlushControl(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register("UPDATE_STOCK_CONTROL", "StockControl", saved.getId(), oldValue, response);
+        operationEventRecorder.controlEdited(saved, resubmission);
         return response;
     }
 
@@ -174,6 +179,7 @@ public class StockControlServiceImpl implements StockControlService {
         var saved    = stockControlRepository.save(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register("APPROVE_STOCK_CONTROL", "StockControl", saved.getId(), null, response);
+        operationEventRecorder.controlApproved(saved);
         eventPublisher.publishEvent(new StockControlReadyForAguasEvent(saved.getId()));
         return response;
     }
@@ -190,6 +196,7 @@ public class StockControlServiceImpl implements StockControlService {
         var saved    = stockControlRepository.save(control);
         var response = stockControlMapper.toResponse(saved);
         auditService.register(REJECT_STOCK_CONTROL_ACTION, "StockControl", saved.getId(), null, response, control.getDriverRejectionReason());
+        operationEventRecorder.controlRejected(saved);
         return response;
     }
 
@@ -206,6 +213,7 @@ public class StockControlServiceImpl implements StockControlService {
         var response = stockControlMapper.toResponse(saved);
 
         auditService.register(CORRECT_STOCK_CONTROL_ACTION, "StockControl", saved.getId(), oldValue, response, request.getReason());
+        operationEventRecorder.controlCorrected(saved, request.getReason());
         eventPublisher.publishEvent(new StockControlCorrectedEvent(saved.getId()));
         aguasControlMetrics.recordCorrected();
         return response;

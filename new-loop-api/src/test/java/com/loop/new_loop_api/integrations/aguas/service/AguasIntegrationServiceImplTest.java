@@ -12,6 +12,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import com.loop.new_loop_api.routes.entity.Route;
 import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
 import com.loop.new_loop_api.stockcontrols.entity.ControlType;
@@ -36,6 +37,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +53,7 @@ class AguasIntegrationServiceImplTest {
     @Mock private AuditService             auditService;
     @Mock private AguasControlMetrics      aguasControlMetrics;
     @Mock private IntegrationCallMetrics   integrationCallMetrics;
+    @Mock private OperationEventRecorder   operationEventRecorder;
 
     private AguasIntegrationServiceImpl aguasIntegrationService;
 
@@ -62,7 +65,7 @@ class AguasIntegrationServiceImplTest {
         aguasIntegrationService = new AguasIntegrationServiceImpl(
                 stockControlRepository, userRepository, integrationLogRepository,
                 aguasClient, aguasRequestMapper, new ObjectMapper(), auditService,
-                aguasControlMetrics, integrationCallMetrics);
+                aguasControlMetrics, integrationCallMetrics, operationEventRecorder);
 
         controlId = UUID.randomUUID();
         control = StockControl.builder()
@@ -130,6 +133,7 @@ class AguasIntegrationServiceImplTest {
 
         verify(aguasControlMetrics).recordSent("IN");
         verify(integrationCallMetrics).recordSuccess(IntegrationName.AGUAS);
+        verify(operationEventRecorder, never()).integrationError(any(), any(StockControl.class));
         verify(aguasControlMetrics, never()).recordRejected(any());
         verify(integrationCallMetrics, never()).recordError(any());
     }
@@ -171,6 +175,7 @@ class AguasIntegrationServiceImplTest {
 
         verify(aguasControlMetrics).recordRejected("IN");
         verify(integrationCallMetrics).recordError(IntegrationName.AGUAS);
+        verify(operationEventRecorder).integrationError(eq(IntegrationName.AGUAS), any(StockControl.class));
         verify(aguasControlMetrics, never()).recordSent(any());
         verify(integrationCallMetrics, never()).recordSuccess(any());
     }

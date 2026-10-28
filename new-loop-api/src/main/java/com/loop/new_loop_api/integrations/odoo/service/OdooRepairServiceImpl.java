@@ -15,6 +15,7 @@ import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.integrations.odoo.mapper.OdooRepairMapper;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooRepairService;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +47,7 @@ public class OdooRepairServiceImpl implements OdooRepairService {
     private final ObjectMapper                objectMapper;
     private final AuditService                auditService;
     private final IntegrationCallMetrics      integrationCallMetrics;
+    private final OperationEventRecorder      operationEventRecorder;
 
     private final RestClient restClient = RestClient.create();
 
@@ -159,6 +161,7 @@ public class OdooRepairServiceImpl implements OdooRepairService {
         persist(integrationLog, movement);
         auditService.register("ODOO_ERROR", ENTITY_NAME, movement.getId(), null, Map.of("error", errorMessage));
         log.error("Odoo {} failed for movement {}: {}", OPERATION, movement.getId(), errorMessage);
+        operationEventRecorder.integrationError(IntegrationName.ODOO, movement);
         integrationCallMetrics.recordError(IntegrationName.ODOO);
     }
 

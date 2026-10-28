@@ -12,6 +12,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
 import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import com.loop.new_loop_api.stockcontrols.entity.ControlStatus;
 import com.loop.new_loop_api.stockcontrols.entity.ControlType;
 import com.loop.new_loop_api.stockcontrols.entity.StockControl;
@@ -52,6 +53,7 @@ public class AguasIntegrationServiceImpl implements AguasIntegrationService {
     private final AuditService             auditService;
     private final AguasControlMetrics      aguasControlMetrics;
     private final IntegrationCallMetrics   integrationCallMetrics;
+    private final OperationEventRecorder   operationEventRecorder;
 
     @Override
     @Transactional
@@ -175,6 +177,7 @@ public class AguasIntegrationServiceImpl implements AguasIntegrationService {
         log.error("Aguas {} failed for control {}: {}",
                 integrationLog.getOperationType(), control.getId(), errorMessage);
         aguasControlMetrics.recordRejected(integrationLog.getOperationType());
+        operationEventRecorder.integrationError(IntegrationName.AGUAS, control);
         integrationCallMetrics.recordError(IntegrationName.AGUAS);
     }
 

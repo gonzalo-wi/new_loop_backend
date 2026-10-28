@@ -119,6 +119,18 @@ public class DispenserMovement {
     @Column(name = "registered_by_username")
     private String registeredByUsername;
 
+    // Measured by the app from the first serial scanned until the movement was submitted; null if unknown.
+    @Column(name = "load_duration_seconds")
+    private Integer loadDurationSeconds;
+
+    // The route's branch when the movement was registered: movements only reference the route by code.
+    @Column(name = "branch_id")
+    private UUID branchId;
+
+    // Set when this movement is the result of editing another one (an edit is a cancel plus a create).
+    @Column(name = "replaces_movement_id")
+    private UUID replacesMovementId;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

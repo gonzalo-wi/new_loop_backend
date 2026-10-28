@@ -12,6 +12,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.integrations.odoo.mapper.OdooRepairMapper;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -55,6 +57,7 @@ class OdooNoNormalizadoServiceImplTest {
     @Mock private IntegrationLogRepository    integrationLogRepository;
     @Mock private AuditService                auditService;
     @Mock private IntegrationCallMetrics      integrationCallMetrics;
+    @Mock private OperationEventRecorder      operationEventRecorder;
 
     private OdooNoNormalizadoServiceImpl service;
     private MockRestServiceServer        server;
@@ -69,7 +72,7 @@ class OdooNoNormalizadoServiceImplTest {
 
         service = new OdooNoNormalizadoServiceImpl(
                 dispenserMovementRepository, integrationLogRepository,
-                new OdooRepairMapper(), new ObjectMapper(), auditService, integrationCallMetrics);
+                new OdooRepairMapper(), new ObjectMapper(), auditService, integrationCallMetrics, operationEventRecorder);
 
         ReflectionTestUtils.setField(service, "restClient", builder.build());
         ReflectionTestUtils.setField(service, "baseUrl", BASE_URL);
@@ -120,6 +123,7 @@ class OdooNoNormalizadoServiceImplTest {
         assertThat(logCaptor.getValue().getStatus()).isEqualTo(IntegrationStatus.SENT);
         assertThat(logCaptor.getValue().getOperationType()).isEqualTo(OdooNoNormalizadoServiceImpl.OPERATION);
         verify(integrationCallMetrics).recordSuccess(IntegrationName.ODOO);
+        verify(operationEventRecorder, never()).integrationError(any(), any(DispenserMovement.class));
     }
 
     @Test
@@ -141,6 +145,7 @@ class OdooNoNormalizadoServiceImplTest {
         assertThat(logCaptor.getValue().getStatus()).isEqualTo(IntegrationStatus.ERROR);
         assertThat(logCaptor.getValue().getErrorMessage()).contains("Falta configurar la ubicacion");
         verify(integrationCallMetrics).recordError(IntegrationName.ODOO);
+        verify(operationEventRecorder).integrationError(eq(IntegrationName.ODOO), any(DispenserMovement.class));
     }
 
     @Test
@@ -155,6 +160,7 @@ class OdooNoNormalizadoServiceImplTest {
 
         assertThat(movement.getOdooNoNormalizadoStatus()).isEqualTo("ERROR");
         verify(integrationCallMetrics).recordError(IntegrationName.ODOO);
+        verify(operationEventRecorder).integrationError(eq(IntegrationName.ODOO), any(DispenserMovement.class));
     }
 
     @Test

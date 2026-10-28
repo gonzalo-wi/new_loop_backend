@@ -17,6 +17,7 @@ import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.exception.IntegrationLogNotFoundException;
 import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
+import com.loop.new_loop_api.performance.service.OperationEventRecorder;
 import feign.Response;
 import feign.Util;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +53,7 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
     private final ApplicationEventPublisher   eventPublisher;
     private final DispenserMovementMetrics    dispenserMovementMetrics;
     private final IntegrationCallMetrics      integrationCallMetrics;
+    private final OperationEventRecorder      operationEventRecorder;
 
     @Override
     @Transactional
@@ -247,6 +249,7 @@ public class AguasEquipmentServiceImpl implements AguasEquipmentService {
         log.error("Aguas equipment {} failed for movement {}: {}",
                 integrationLog.getOperationType(), movement.getId(), errorMessage);
         dispenserMovementMetrics.recordRejected(movement.getType());
+        operationEventRecorder.integrationError(IntegrationName.AGUAS, movement);
         integrationCallMetrics.recordError(IntegrationName.AGUAS);
     }
 
