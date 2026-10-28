@@ -130,7 +130,7 @@ control and passes each group, in order, to a pure translator. It returns
 | `performance/repository/PerformanceMetricsRepository.java` | SQL: per-user summary (control events, faulty controls, dispenser movements), daily trend, coverage, top reasons | 21–27 |
 | `performance/service/PerformanceMetricsService(Impl).java` | Resolves the scope, the date range and "today" from the `Clock`, builds the responses | 21–32 |
 | `performance/service/AuditHistoryImportService(Impl).java` | Cutoff, pages through the audit log, groups by control, translates, inserts with `ON CONFLICT DO NOTHING`, report | 17–20 |
-| `performance/controller/PerformanceController.java` | `GET /performance/summary`, `GET /performance/users/{userId}`, `POST /performance/import`; `@PreAuthorize` | 21–32 |
+| `performance/controller/PerformanceController.java` | `GET /performance/summary`, `GET /performance/users/{userId}`, `POST /performance/import`; access checked in the services (the project has no `@PreAuthorize`) | 21–32 |
 | `performance/dto/*` | `PerformanceSummaryResponse` (rows, coverage, topReasons), `UserTrendResponse`, `ImportReport` | 21–25 |
 | `docs/PERFORMANCE.md` | API contract for the panel, following the existing `docs/*.md` | — |
 

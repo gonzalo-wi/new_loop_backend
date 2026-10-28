@@ -11,8 +11,9 @@ Checks after every task: `./mvnw test` (Git Bash). Postgres-backed tests run wit
   - `V40__create_operation_events.sql`: `operation_events` and `operation_event_items`, indexes on
     `(event_date, branch_id)`, `(responsible_user_id, event_date)` and `(subject_id)`, a unique
     `source_audit_id`, and a trigger that rejects UPDATE and DELETE on both tables.
-  - Note: the Postgres tests are written but not run locally (user decision); the migrations are validated on
-    the homologation deploy before production.
+  - Postgres tests run locally on 2026-10-28 against an empty `loop_test` database: V1-V41 applied, the
+    append-only trigger, the unique audit source and `findByRouteNumber` pass, and the full context starts
+    with `ddl-auto=validate`.
   - Done when: a Postgres test shows inserts succeed and update/delete fail; the application context
     still starts with `ddl-auto=validate`.
 
@@ -63,3 +64,72 @@ Checks after every task: `./mvnw test` (Git Bash). Postgres-backed tests run wit
 - [x] **T9. Docs.** —
   - `docs/DISPENSERS.md`: the optional `loadDurationSeconds` request field.
   - Done when: the doc states the field, its unit and that out-of-range values are ignored.
+
+## Phase B — Metrics API and history import
+
+Status: approved (2026-10-28), implemented
+
+The SQL tasks (T12–T15, T18) are covered by `PostgresIntegrationTest` tests, run locally against the
+`loop_test` database.
+
+- [x] **T10. Metrics scope (pure).** FR-28–32
+  - `MetricsScope.resolve(AuthenticatedUser, UUID requestedBranchId)`: all branches (admin, no filter),
+    one branch (admin with filter, or the supervisor's own branch whatever the filter), denied (other
+    roles, supervisor without branch, no user) with typed exceptions mapped to 403.
+  - Done when: unit tests cover each case, and the "all branches" scope is the only one that includes
+    movements without branch.
+
+- [x] **T11. Range resolution (pure).** FR-21, FR-22, FR-33
+  - `MetricsRange.of(from, to, Clock)`: default current week Monday to Sunday; `lastEndedDay` = yesterday
+    for coverage; from after to, or more than 92 days, is rejected with 400 (same limit as the existing
+    dispenser statistics).
+  - Done when: unit tests with a fixed clock cover the default week (including a Sunday and a Monday),
+    the coverage cutoff and both invalid ranges.
+
+- [x] **T12. Stock-control metrics per user (SQL).** FR-6, FR-21, FR-27
+  - Repository query over `operation_events`: submitted by type, edits, resubmissions, rejection rounds,
+    first-pass acceptance rate, average time to driver response, corrections, faulty controls, error
+    rate, controls with integration errors; cancelled controls excluded; scope and filters (FR-23).
+  - Done when: a Postgres test with seeded events checks every column for two users, including a
+    control rejected twice, edited and corrected (one faulty control) and empty averages.
+
+- [x] **T13. Dispenser metrics per user (SQL).** FR-8, FR-9, FR-21, FR-32
+  - Repository query over `dispenser_movements`: movements by type, serials, excluded serials, average
+    and median load duration, slow loads, average and median gap excluding pauses, pauses, cancellations
+    (not edits), movements with integration errors; time and date from the first movement of each edit
+    chain; movements without branch only in the "all branches" scope.
+  - Done when: a Postgres test covers an edit chain, a pause, a gap across midnight, a slow load and
+    the branch scoping.
+
+- [x] **T14. Coverage (SQL).** FR-6, FR-22
+  - Expected and missing entries per branch and control date up to the last ended day, with the routes
+    missing; entries matched by route and date in any branch.
+  - Done when: a Postgres test covers a Saturday exit for Monday, today excluded, two exits for one route
+    and a cancelled entry.
+
+- [x] **T15. Daily trend and top reasons (SQL).** FR-24, FR-25
+  - Per-day metrics for one responsible user; most frequent rejection and correction reasons per
+    responsible user and per actor (exact text, trimmed and case-insensitive).
+  - Done when: a Postgres test checks two days of trend and the reason counts.
+
+- [x] **T16. Metrics service, DTOs and endpoints.** FR-21–32
+  - `PerformanceMetricsService` builds `PerformanceSummaryResponse` and `UserTrendResponse` from T10–T15;
+    `PerformanceController`: `GET /performance/summary` and `GET /performance/users/{userId}`.
+  - Done when: service unit tests (repository mocked) cover scope, range, filters and empty values, and
+    the endpoints answer 403 for a controller.
+
+- [x] **T17. Audit translator (pure).** FR-17, FR-19, FR-20
+  - `AuditEventTranslator`: the ordered audit entries of one control in, events plus skip reasons out
+    (rounds, resubmissions, response times, corrections).
+  - Done when: unit tests cover create → reject → edit → reject → edit → approve, an edit while pending,
+    a correction, an unreadable JSON and a missing field.
+
+- [x] **T18. History import service and endpoint.** FR-17, FR-18, FR-19
+  - `POST /performance/import` (admin only): cutoff at the first live event, pages through the audit
+    log, translates per control, inserts with `ON CONFLICT DO NOTHING`, returns imported/skipped counts.
+  - Done when: a service test (repositories mocked) checks the cutoff, the grouping and the report, and a
+    Postgres test shows a second run imports nothing.
+
+- [x] **T19. Docs.** —
+  - `docs/PERFORMANCE.md`: both metrics endpoints and the import, in the format of the existing docs.
+  - Done when: every field of the responses is described with its unit and when it can be empty.

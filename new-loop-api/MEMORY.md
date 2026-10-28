@@ -27,11 +27,24 @@
     matched by digits (RouteNumber); a number shared by several routes gives no branch.
     Branch route ranges (user, informative only): Ciudadela 1-200, La Plata 200-300, 400-500 another
     plant; 500+ is another business unit in Ciudadela, not in LOOP yet.
-    Open: (2) the user will not run the Postgres tests locally: V40/V41, the trigger and findByRouteNumber are
-    validated on the homologation deploy (Flyway logs, then one entry control, one driver rejection and
-    one dispenser movement by hand) before production;
+    Open: (2) Postgres tests ran locally on 2026-10-28 and Phase A ones pass;
     (3) nothing else blocks Phase B.
+  - Phase B implemented and reviewed (2026-10-28), not committed: GET /performance/summary,
+    GET /performance/users/{id}, POST /performance/import (admin only, re-runnable). Range max 92 days
+    (FR-27a). Import cutoff: global first live event plus, per control, entries older than its first
+    live event minus 5 s (the audit entry is written a few ms before the live event). Load test: monthly
+    summary of one branch at ~3x volume in 161 ms (budget 2 s).
+  - Next: Phase C (app load timer) and Phase D (panel "Desempeño" page) task lists.
   - Errors are counted per control, not per item (user, 2026-10-28): a control is faulty if the driver
     rejected it, it was edited after submitting, or a supervisor corrected it. FR-26 (products with most
     differences) was removed.
   - Item differenceQuantity is never computed in the code (always null) despite docs/STOCK_CONTROLS.md.
+
+## Local Postgres for tests
+- PostgreSQL 18 on localhost:5432, client at `C:/Program Files/PostgreSQL/18/bin/psql.exe`. Dev DB
+  `loop_new_db`; tests use a separate empty `loop_test` (created 2026-10-28), user `postgres`.
+  Run: `LOOP_TEST_DB_URL=jdbc:postgresql://localhost:5432/loop_test LOOP_TEST_DB_USERNAME=postgres
+  LOOP_TEST_DB_PASSWORD=... ./mvnw test`. The password is the user's: ask for it, never write it to a file.
+- Pre-existing failures with Postgres enabled (not from spec 001): NewLoopApiApplicationTests (uses the
+  default datasource, no password), DispenserSerialHistoryRepositoryTest.shouldPersistBaggedSerials
+  (LazyInitializationException), StockControlDuplicateConcurrencyTest (no security context since 7607aa3).

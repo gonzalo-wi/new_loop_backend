@@ -159,6 +159,8 @@ it, and shows the resulting metrics in the admin panel.
 - FR-26: (Removed on 2026-10-28: errors are measured by count of faulty controls, not by product or units.)
 - FR-27: IF an average, median or rate has no data in the range, THEN THE SYSTEM SHALL return it as empty;
   counts with no activity SHALL be zero.
+- FR-27a: IF the range starts after it ends or spans more than 92 days, THEN THE SYSTEM SHALL reject the
+  request as invalid (same limit as the existing dispenser statistics).
 
 ### Access
 - FR-28: IF a user without the admin or supervisor role requests metrics, THEN THE SYSTEM SHALL deny access.
