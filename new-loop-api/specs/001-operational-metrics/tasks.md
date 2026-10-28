@@ -162,3 +162,50 @@ the original one (FR-8). No visible UI change. Checks: `npx jest` and `npx tsc -
   - Done when: `npx tsc --noEmit` is clean, `npx jest` is green, and a manual check on the emulator shows
     the field in the request (and `load_duration_seconds` stored) for a new load, and no field on an edit.
   - Status: code done and reviewed (jest 888 green, tsc clean); the manual emulator check is still pending.
+
+## Phase D — "Desempeño" page in the panel (new-loop-front)
+
+Status: approved (2026-10-28), implemented
+
+Route `/statistics/performance`, under the existing "Estadísticas" sidebar group (already limited to admin
+and supervisor). The panel has no unit-test runner: pure logic lives in `lib/` files and is checked with
+`npx tsc --noEmit`, `npm run build` and by hand in the browser. Every text in Spanish.
+
+- [x] **T23. Types, service and API contract.** FR-33–35
+  - `features/performance/types.ts` and `services/performance.service.ts` (`fetchPerformanceSummary`,
+    `fetchUserTrend`) matching `docs/PERFORMANCE.md`; the two endpoints added to `api.md`.
+  - Done when: `npx tsc --noEmit` is clean and the types mirror every field of the backend DTOs.
+
+- [x] **T24. Pure helpers.** FR-33
+  - `features/performance/lib/dateRange.ts` (current week Monday to Sunday, formatted with date-fns, never
+    `toISOString()`), `lib/sortRows.ts` (any column, empty values always last) and `lib/format.ts` (minutes,
+    percent, "—" for empty).
+  - Done when: tsc is clean and each function is checked by hand in the browser (week on a Sunday and a
+    Monday, empty values last in both directions).
+
+- [x] **T25. Sortable columns in the shared table.** FR-33
+  - `DataTable` gets optional `sort` / `onSortChange` props: headers of columns marked `sortable` (the field
+    already exists in `TableColumn`) become buttons with a direction indicator. Additive: existing tables
+    are unchanged.
+  - Done when: tsc and build are clean and an existing table (e.g. dispenser statistics) renders as before.
+
+- [x] **T26. Page, filters and the per-user tables.** FR-33, FR-36
+  - `pages/PerformancePage.tsx`: range (default current week, max 92 days) and, for admins only, branch
+    filter; two sortable tables, "Controles" and "Dispensers", one row per user; loading, error and empty
+    states. Route, sidebar item ("Desempeño") and topbar title.
+  - Done when: the page loads with real data, sorts by every column, and shows its three states.
+
+- [x] **T27. User detail.** FR-34
+  - Clicking a row opens that user's daily trend (bars per day, same hand-made approach as
+    `DailyVolumeChart`) and their top rejection and correction reasons.
+  - Done when: the detail shows every day of the range, with empty days visible, and closes back to the table.
+
+- [x] **T28. Missing entries and top reasons.** FR-35, FR-25
+  - Panel with the routes that came back without an entry control, per date and branch, and panel with
+    the most frequent reasons by who wrote them.
+  - Done when: both panels show their data and an empty state when there is none.
+
+- [x] **T29. Check in the browser.** FR-33–36
+  - Run the panel against a local backend on the `loop_test` database (which already has seeded events and
+    movements) with a local test admin user, and go through every FR-33–36 case, also as a supervisor.
+  - Done when: each case is checked with a screenshot, and `npx tsc --noEmit` and `npm run build` are clean.
