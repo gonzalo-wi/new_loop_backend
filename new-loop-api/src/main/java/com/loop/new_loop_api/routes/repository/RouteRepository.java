@@ -14,6 +14,21 @@ public interface RouteRepository extends JpaRepository<Route, UUID> {
 
     boolean existsByCode(String code);
 
+    /**
+     * Routes whose code has this number once letters are ignored ("Rto 179" for 179); see RouteNumber.
+     * The CASE keeps the cast from failing on codes with no digits or too many of them.
+     */
+    @Query(
+            value = """
+                    SELECT r.* FROM routes r
+                    WHERE CASE
+                              WHEN length(regexp_replace(r.code, '[^0-9]', '', 'g')) BETWEEN 1 AND 18
+                              THEN CAST(regexp_replace(r.code, '[^0-9]', '', 'g') AS BIGINT)
+                          END = :number
+                    """,
+            nativeQuery = true)
+    List<Route> findByRouteNumber(@Param("number") long number);
+
     /** Route counts grouped by branch and active flag, so summaries don't load every route. */
     @Query("""
             select new com.loop.new_loop_api.routes.repository.RouteBranchCount(b.id, b.name, r.active, count(r))

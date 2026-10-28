@@ -24,6 +24,9 @@ import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementServic
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
+import com.loop.new_loop_api.performance.domain.LoadDuration;
+import com.loop.new_loop_api.performance.domain.RouteNumber;
+import com.loop.new_loop_api.routes.repository.RouteRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,16 +72,22 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     private final OdooDispatchService         odooDispatchService;
     private final UnregisteredDispenserService unregisteredDispenserService;
     private final DispenserMovementMetrics    dispenserMovementMetrics;
+    private final RouteRepository             routeRepository;
 
     @Override
     @Transactional
     public DispenserMovementResponse createMovement(CreateDispenserMovementRequest request) {
+        return create(request, null);
+    }
+
+    /** {@code replaced} is the movement an edit cancelled, or null for a new movement. */
+    private DispenserMovementResponse create(CreateDispenserMovementRequest request, DispenserMovement replaced) {
         var date = request.getMovementDate() != null ? request.getMovementDate() : LocalDate.now();
         validateBaggedSerials(request);
         validateNoDuplicate(request, date);
         var earlierLoads = findActiveLoads(request, date);
         validateNoRepeatedSerials(request, date, earlierLoads);
-        var movement = buildMovement(request, date);
+        var movement = buildMovement(request, date, replaced);
         excludeUnregisteredSerials(movement);
         excludeUnavailableInOdoo(movement);
         var saved    = insertMovement(movement);
@@ -149,7 +158,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         // Before cancelling: the cancel deletes the movement in Aguas, which a later rollback cannot undo.
         validateBaggedSerials(request);
         cancelMovement(id);
-        return createMovement(request);
+        return create(request, findMovementById(id));
     }
     
 
@@ -227,7 +236,8 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         return serial.trim().toUpperCase(Locale.ROOT);
     }
 
-    private DispenserMovement buildMovement(CreateDispenserMovementRequest request, LocalDate date) {
+    private DispenserMovement buildMovement(CreateDispenserMovementRequest request, LocalDate date,
+                                            DispenserMovement replaced) {
         var movement = dispenserMovementMapper.toEntity(request, date);
         movement.setLocationId(resolveLocationId(request.getType(), request.getLocationId()));
         movement.setStateId(resolveStateId(request.getType(), request.getStateId()));
@@ -235,7 +245,30 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
             movement.setRegisteredBy(user.id());
             movement.setRegisteredByUsername(user.username());
         });
+        movement.setBranchId(findRouteBranchId(movement.getRouteCode()));
+        applyMetricsLink(movement, request, replaced);
         return movement;
+    }
+
+    /** An edit is not a new load: it keeps the original load's duration and points back to it. */
+    private void applyMetricsLink(DispenserMovement movement, CreateDispenserMovementRequest request,
+                                  DispenserMovement replaced) {
+        if (replaced == null) {
+            movement.setLoadDurationSeconds(LoadDuration.accept(request.getLoadDurationSeconds()));
+            return;
+        }
+        movement.setReplacesMovementId(replaced.getId());
+        movement.setLoadDurationSeconds(replaced.getLoadDurationSeconds());
+    }
+
+    /** Matched by number ("179" → "Rto 179"); no branch when no route or more than one has that number. */
+    private UUID findRouteBranchId(String routeCode) {
+        var number = RouteNumber.of(routeCode);
+        if (number == null) return null;
+        var routes = routeRepository.findByRouteNumber(number);
+        if (routes.size() != 1) return null;
+        var branch = routes.get(0).getBranch();
+        return branch != null ? branch.getId() : null;
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.loop.new_loop_api.dispensers.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
+import com.loop.new_loop_api.branches.entity.Branch;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
 import com.loop.new_loop_api.dispensers.dto.CreateDispenserMovementRequest;
 import com.loop.new_loop_api.dispensers.dto.DispenserMovementResponse;
@@ -19,10 +20,13 @@ import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
+import com.loop.new_loop_api.routes.entity.Route;
+import com.loop.new_loop_api.routes.repository.RouteRepository;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -61,6 +66,7 @@ class DispenserMovementServiceImplTest {
     @Mock private OdooDispatchService           odooDispatchService;
     @Mock private UnregisteredDispenserService  unregisteredDispenserService;
     @Mock private DispenserMovementMetrics      dispenserMovementMetrics;
+    @Mock private RouteRepository               routeRepository;
 
     private DispenserMovementServiceImpl dispenserMovementService;
 
@@ -69,7 +75,7 @@ class DispenserMovementServiceImplTest {
         dispenserMovementService = new DispenserMovementServiceImpl(
                 dispenserMovementRepository, dispenserMovementMapper, currentUserProvider, auditService,
                 eventPublisher, aguasEquipmentService, odooDispatchService, unregisteredDispenserService,
-                dispenserMovementMetrics);
+                dispenserMovementMetrics, routeRepository);
     }
 
     private CreateDispenserMovementRequest loadRequest(List<String> serials) {
@@ -607,6 +613,117 @@ class DispenserMovementServiceImplTest {
         dispenserMovementService.createMovement(request);
 
         verify(dispenserMovementRepository).saveAndFlush(any());
+    }
+
+    // ---------- operational metrics: load duration, route branch, edit link ----------
+
+    @Test
+    void shouldStoreLoadDurationAndRouteBranch_when_creatingALoad() {
+        stubLoadMovementUpToSave();
+        stubSaveAndResponse();
+        var branchId = UUID.randomUUID();
+        when(routeRepository.findByRouteNumber(1L)).thenReturn(List.of(routeWithBranch("Rto 1", branchId)));
+        var request = loadRequest(List.of("SN-1"));
+        request.setLoadDurationSeconds(600);
+
+        dispenserMovementService.createMovement(request);
+
+        var saved = savedMovement();
+        assertThat(saved.getLoadDurationSeconds()).isEqualTo(600);
+        assertThat(saved.getBranchId()).isEqualTo(branchId);
+        assertThat(saved.getReplacesMovementId()).isNull();
+    }
+
+    @Test
+    void shouldDropLoadDuration_when_itIsAnHourOrMore() {
+        stubLoadMovementUpToSave();
+        stubSaveAndResponse();
+        var request = loadRequest(List.of("SN-1"));
+        request.setLoadDurationSeconds(3600);
+
+        dispenserMovementService.createMovement(request);
+
+        assertThat(savedMovement().getLoadDurationSeconds()).isNull();
+    }
+
+    @Test
+    void shouldAcceptMovementWithoutDurationOrBranch_when_appIsOldAndRouteIsUnknown() {
+        stubLoadMovementUpToSave();
+        stubSaveAndResponse();
+        when(routeRepository.findByRouteNumber(1L)).thenReturn(List.of());
+
+        dispenserMovementService.createMovement(loadRequest(List.of("SN-1")));
+
+        var saved = savedMovement();
+        assertThat(saved.getLoadDurationSeconds()).isNull();
+        assertThat(saved.getBranchId()).isNull();
+    }
+
+    @Test
+    void shouldLeaveBranchEmpty_when_severalRoutesShareTheNumber() {
+        stubLoadMovementUpToSave();
+        stubSaveAndResponse();
+        when(routeRepository.findByRouteNumber(1L)).thenReturn(List.of(
+                routeWithBranch("Rto 1", UUID.randomUUID()), routeWithBranch("R01", UUID.randomUUID())));
+
+        dispenserMovementService.createMovement(loadRequest(List.of("SN-1")));
+
+        assertThat(savedMovement().getBranchId()).isNull();
+    }
+
+    @Test
+    void shouldNotLookUpTheRoute_when_routeCodeHasNoNumber() {
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.LOAD)
+                .routeCode("Rto")
+                .movementDate(LocalDate.now())
+                .serials(new java.util.ArrayList<>(List.of("SN-1")))
+                .build();
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of());
+        stubSaveAndResponse();
+        var request = loadRequest(List.of("SN-1"));
+        request.setRouteCode("Rto");
+
+        dispenserMovementService.createMovement(request);
+
+        assertThat(savedMovement().getBranchId()).isNull();
+        verify(routeRepository, never()).findByRouteNumber(anyLong());
+    }
+
+    @Test
+    void shouldLinkToTheReplacedMovementAndKeepItsDuration_when_editingAMovement() {
+        var original = activeLoad(List.of("SN-1"));
+        original.setLoadDurationSeconds(420);
+        when(dispenserMovementRepository.findById(original.getId())).thenReturn(Optional.of(original));
+        when(dispenserMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubLoadMovementUpToSave();
+        stubSaveAndResponse();
+        var request = loadRequest(List.of("SN-2"));
+        request.setLoadDurationSeconds(15);
+
+        dispenserMovementService.updateMovement(original.getId(), request);
+
+        var saved = savedMovement();
+        assertThat(original.getStatus()).isEqualTo(DispenserMovementStatus.CANCELLED);
+        assertThat(saved.getReplacesMovementId()).isEqualTo(original.getId());
+        assertThat(saved.getLoadDurationSeconds()).isEqualTo(420);
+    }
+
+    private static Route routeWithBranch(String code, UUID branchId) {
+        return Route.builder().code(code).branch(Branch.builder().id(branchId).build()).build();
+    }
+
+    private void stubSaveAndResponse() {
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
+    }
+
+    private DispenserMovement savedMovement() {
+        var captor = ArgumentCaptor.forClass(DispenserMovement.class);
+        verify(dispenserMovementRepository).saveAndFlush(captor.capture());
+        return captor.getValue();
     }
 
     private void stubLoadMovementUpToSave() {

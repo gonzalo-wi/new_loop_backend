@@ -126,6 +126,9 @@ Authorization: Bearer <token>
 | `stateId`      | integer | No        | según tipo | ID de estado destino (del catálogo de Aguas)               |
 | `movementDate` | date    | No        | hoy        | Fecha del movimiento (`YYYY-MM-DD`)                        |
 | `serials`      | array   | Sí        | —          | Números de serie escaneados (al menos uno)                 |
+| `loadDurationSeconds` | integer | No | —          | Segundos desde el primer serial escaneado hasta el envío (métricas de desempeño) |
+
+> **`loadDurationSeconds`** lo mide la app con el reloj del dispositivo. Si falta, es negativo o es de 3600 segundos (1 hora) o más, el movimiento se registra igual pero sin duración: un formulario abierto tanto tiempo es una pausa, no una carga. Las versiones viejas de la app no lo mandan y siguen funcionando.
 
 > **Defaults de `locationId` / `stateId` (si no se envían):**
 >
@@ -304,6 +307,8 @@ Qué hace internamente:
 3. Crea uno nuevo con los datos corregidos y lo reenvía a Aguas.
 
 Devuelve el **movimiento nuevo** (con su nuevo `id`).
+
+> Para las métricas de desempeño, el movimiento nuevo queda vinculado al anterior y conserva su duración de carga: una corrección no cuenta como una carga nueva ni como una cancelación. Si se manda `loadDurationSeconds` en la corrección, se ignora.
 
 ### Errores
 **`409 Conflict`** — no se pudo borrar el anterior en Aguas

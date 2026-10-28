@@ -38,4 +38,8 @@ public class CreateDispenserMovementRequest {
 
     // Optional, UNLOAD only: subset of serials that came back still bagged. Stored internally, never sent out.
     private List<@NotBlank String> baggedSerials;
+
+    // Optional, measured by the app: seconds from the first serial scanned until submitting. Older apps omit it;
+    // implausible values are dropped instead of rejecting the movement. Ignored on edits.
+    private Integer loadDurationSeconds;
 }
