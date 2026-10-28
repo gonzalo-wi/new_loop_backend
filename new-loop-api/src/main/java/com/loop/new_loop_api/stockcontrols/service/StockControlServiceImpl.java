@@ -248,14 +248,27 @@ public class StockControlServiceImpl implements StockControlService {
     }
 
 
+    @Override
+    @Transactional
+    public StockControlResponse markRemitoPrinted(UUID id) {
+        var control = findControlById(id);
+        assertRemitoAvailable(control);
+        control.setRemitoPrinted(true);
+        return stockControlMapper.toResponse(stockControlRepository.save(control));
+    }
+
     private byte[] buildRemito(StockControl control) {
+        assertRemitoAvailable(control);
+        return remitoPdfGenerator.generate(control);
+    }
+
+    private void assertRemitoAvailable(StockControl control) {
         if (control.getType() != ControlType.EXIT) {
             throw new RemitoNotAvailableException(control.getId(), "remitos are only generated for EXIT controls");
         }
         if (control.getAguasFormulario() == null || control.getAguasNroRemito() == null) {
             throw new RemitoNotAvailableException(control.getId(), "the control has not been confirmed with Aguas yet");
         }
-        return remitoPdfGenerator.generate(control);
     }
 
     /** A corrected rejection goes back to the driver's pending list; the reason lives on in the audit log. */

@@ -23,6 +23,7 @@ import com.loop.new_loop_api.stockcontrols.event.StockControlReadyForAguasEvent;
 import com.loop.new_loop_api.stockcontrols.exception.ControlEditNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.CorrectionNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
+import com.loop.new_loop_api.stockcontrols.exception.RemitoNotAvailableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotCorrectableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotFoundException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotModifiableException;
@@ -467,5 +468,59 @@ class StockControlServiceImplTest {
                     isNull(), isNull(), isNull(), expected == null ? isNull() : eq(expected),
                     any(), isNull(), isNull(), isNull(), isNull()));
         }
+    }
+
+    // 9. Remito printed mark: operators share one panel session and need to know what was printed
+    @Test
+    void should_markRemitoPrinted_when_exitControlHasRemito() {
+        var exit = exitControlWithRemito();
+        var response = StockControlResponse.builder().id(controlId).remitoPrinted(true).build();
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(exit));
+        when(stockControlRepository.save(exit)).thenReturn(exit);
+        when(stockControlMapper.toResponse(exit)).thenReturn(response);
+
+        var result = stockControlService.markRemitoPrinted(controlId);
+
+        assertThat(result).isEqualTo(response);
+        assertThat(exit.getRemitoPrinted()).isTrue();
+        verify(stockControlRepository).save(exit);
+    }
+
+    @Test
+    void should_throwRemitoNotAvailableException_when_markingEntryControlPrinted() {
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(entryControl(ControlStatus.SENT_TO_AGUAS)));
+
+        assertThatThrownBy(() -> stockControlService.markRemitoPrinted(controlId))
+                .isInstanceOf(RemitoNotAvailableException.class);
+
+        verify(stockControlRepository, never()).save(any());
+    }
+
+    @Test
+    void should_throwRemitoNotAvailableException_when_markingExitNotConfirmedWithAguas() {
+        var exit = entryControl(ControlStatus.CONTROLLED);
+        exit.setType(ControlType.EXIT);
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(exit));
+
+        assertThatThrownBy(() -> stockControlService.markRemitoPrinted(controlId))
+                .isInstanceOf(RemitoNotAvailableException.class);
+
+        verify(stockControlRepository, never()).save(any());
+    }
+
+    @Test
+    void should_throwStockControlNotFoundException_when_markingUnknownControlPrinted() {
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> stockControlService.markRemitoPrinted(controlId))
+                .isInstanceOf(StockControlNotFoundException.class);
+    }
+
+    private StockControl exitControlWithRemito() {
+        var exit = entryControl(ControlStatus.SENT_TO_AGUAS);
+        exit.setType(ControlType.EXIT);
+        exit.setAguasFormulario("R");
+        exit.setAguasNroRemito(123L);
+        return exit;
     }
 }

@@ -94,6 +94,12 @@ public class StockControlController {
         return remitoResponse(pdf, "remito-" + id + ".pdf");
     }
 
+    @PostMapping("/{id}/remito/printed")
+    public ResponseEntity<ApiResponse<StockControlResponse>> markRemitoPrinted(@PathVariable UUID id) {
+        var response = stockControlService.markRemitoPrinted(id);
+        return ResponseEntity.ok(ApiResponse.ok(response, UPDATED_MESSAGE));
+    }
+
     private ResponseEntity<byte[]> remitoResponse(byte[] pdf, String filename) {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)

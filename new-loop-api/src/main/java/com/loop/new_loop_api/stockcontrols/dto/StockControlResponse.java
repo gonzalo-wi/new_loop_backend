@@ -29,6 +29,7 @@ public class StockControlResponse {
     private LocalDateTime                  confirmedAt;
     private LocalDateTime                  approvedAt;
     private String                         driverRejectionReason;
+    private Boolean                        remitoPrinted;
     private String                         aguasFormulario;
     private Long                           aguasNroRemito;
     private LocalDateTime                  createdAt;

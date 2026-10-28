@@ -67,6 +67,11 @@ public class StockControl {
     @Column(name = "driver_rejection_reason", length = 500)
     private String driverRejectionReason;
 
+    // Set when the remito is sent to the printer from the panel; the browser can't confirm the paper came out.
+    @Column(name = "remito_printed", nullable = false)
+    @Builder.Default
+    private Boolean remitoPrinted = false;
+
     // Returned by Aguas when the control is sent, needed to generate the digital remito later.
     @Column(name = "aguas_formulario", length = 50)
     private String aguasFormulario;
