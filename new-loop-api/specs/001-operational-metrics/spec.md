@@ -128,6 +128,8 @@ it, and shows the resulting metrics in the admin panel.
   measuring; WHEN the movement is submitted successfully, THE APP SHALL send the elapsed time with it.
   A failed submission that is retried keeps the original start; clearing the form, registering a
   movement or leaving the screen resets it.
+- FR-15a: THE APP SHALL NOT show the load timer or the measured duration to the controller: it is only
+  measured and sent (user decision, 2026-10-28).
 - FR-16: IF the elapsed time is missing (older app versions, app restarted mid-load), negative, or 60
   minutes or more, THEN THE SYSTEM SHALL accept the movement and record it without a load duration.
 

@@ -133,3 +133,32 @@ The SQL tasks (T12–T15, T18) are covered by `PostgresIntegrationTest` tests, r
 - [x] **T19. Docs.** —
   - `docs/PERFORMANCE.md`: both metrics endpoints and the import, in the format of the existing docs.
   - Done when: every field of the responses is described with its unit and when it can be empty.
+
+## Phase C — Load timer in the app (react-nati)
+
+Status: approved (2026-10-28)
+
+The timer follows the form's serial list: it starts when the list goes from empty to one serial and
+resets when the list is empty again (cleared, every serial removed, or emptied after a successful
+registration). A failed submission keeps the serials, so it keeps the original start. Leaving the
+screen unmounts it, which resets it. Edits (movement detail screen) send no duration: the backend keeps
+the original one (FR-8). No visible UI change. Checks: `npx jest` and `npx tsc --noEmit` in react-nati.
+
+- [x] **T20. Load timer rules (pure).** FR-15
+  - `features/dispensers/lib/loadTimer.ts`: `nextStartedAt(startedAt, serialCount, now)` (starts only from
+    empty, keeps while there are serials, resets at zero) and `elapsedSeconds(startedAt, now)` (whole
+    seconds, never negative, undefined when not started).
+  - Done when: unit tests cover start from empty, adding more serials keeps the start, back to zero resets,
+    a new start after a reset, rounding and a clock that went backwards.
+
+- [x] **T21. Load timer hook.** FR-15
+  - `features/dispensers/hooks/useLoadTimer.ts`: takes the serial count and an injected `now`, returns
+    `elapsedSeconds()` for the submit.
+  - Done when: a `renderHook` test checks start, keep across re-renders and a failed submit, and reset
+    when the count goes to zero.
+
+- [ ] **T22. Send the duration with new movements.** FR-15, FR-16
+  - `CreateMovementPayload.loadDurationSeconds?` and `app/dispensers.tsx` passes the hook's value on create.
+  - Done when: `npx tsc --noEmit` is clean, `npx jest` is green, and a manual check on the emulator shows
+    the field in the request (and `load_duration_seconds` stored) for a new load, and no field on an edit.
+  - Status: code done and reviewed (jest 888 green, tsc clean); the manual emulator check is still pending.
