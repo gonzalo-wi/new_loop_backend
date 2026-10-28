@@ -34,7 +34,10 @@
     (FR-27a). Import cutoff: global first live event plus, per control, entries older than its first
     live event minus 5 s (the audit entry is written a few ms before the live event). Load test: monthly
     summary of one branch at ~3x volume in 161 ms (budget 2 s).
-  - Next: Phase C (app load timer) and Phase D (panel "Desempeño" page) task lists.
+  - Phase C committed in react-nati, branch feat/dispenser-load-timer (2026-10-28): silent load timer,
+    hidden from controllers (FR-15a). T22 manual check pending on homologation after deploy: a new load
+    sends loadDurationSeconds and stores load_duration_seconds; an edit sends none.
+  - Next: Phase D (panel "Desempeño" page) task list.
   - Errors are counted per control, not per item (user, 2026-10-28): a control is faulty if the driver
     rejected it, it was edited after submitting, or a supervisor corrected it. FR-26 (products with most
     differences) was removed.
