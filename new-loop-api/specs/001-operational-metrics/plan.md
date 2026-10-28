@@ -48,11 +48,13 @@ itself.
 ### D4. Per-product quantities in a child table
 `operation_event_items` holds, per product, a snapshot of the product name, total, full and exchange
 quantities. It is written for `CONTROL_SUBMITTED`, `CONTROL_EDITED` and `CONTROL_CORRECTED` events.
-The item's `differenceQuantity` is never filled in today, so the raw quantities are stored and the
-difference rule (still open in the spec) is applied at query time in Phase B. FR-26 reads the latest
-submitted/edited event per control; FR-5's "before" is the previous event's items.
+No metric reads them: errors are counted per faulty control (spec, Definitions), not per item. They
+stay as a record of what each version of the control said (FR-5's corrected figures), at negligible cost.
 - *Discarded:* reading `stock_control_items`. A correction overwrites those rows.
-- *Discarded:* storing a precomputed difference. Its rule is not defined yet.
+
+**Faulty controls (Phase B):** a control is faulty if it has at least one `CONTROL_REJECTED`,
+`CONTROL_EDITED` or `CONTROL_CORRECTED` event. The query groups those events by `subject_id` and counts
+the control once, on the event date of its `CONTROL_SUBMITTED` event, for its responsible user.
 
 ### D5. Metrics computed in SQL on every request, no summary tables
 The volume is about 150k events a year. Aggregating with `NamedParameterJdbcTemplate` (the same
@@ -112,7 +114,7 @@ control and passes each group, in order, to a pure translator. It returns
 | `common/config/ClockConfig.java` | `Clock` bean | D6 |
 | `performance/entity/OperationEvent.java`, `OperationEventItem.java`, `OperationEventType.java` | Entities (`@Immutable`) and enum: `CONTROL_SUBMITTED`, `CONTROL_EDITED`, `CONTROL_APPROVED`, `CONTROL_REJECTED`, `CONTROL_CORRECTED`, `INTEGRATION_ERROR` | 1–5, 10 |
 | `performance/repository/OperationEventRepository.java` | Save; count previous rejections of a control | 3, 4 |
-| `performance/domain/ControlFigures.java` | Pure: items count, total units, units with difference, per-product differences from a control | 1, 2, 5 |
+| `performance/domain/ControlFigures.java` | Pure: items count, total units and per-product quantities from a control | 1, 2, 5 |
 | `performance/domain/LoadDuration.java` | Pure: `accept(Integer)` returns the seconds, or null if null, negative or ≥ 3600 | 16 |
 | `performance/service/OperationEventRecorder.java` | Builds and saves events: actor from `CurrentUserProvider`, responsible user, username and route snapshots, timing from `Clock` | 1–5, 10, 13 |
 | `stockcontrols/service/StockControlServiceImpl.java` | Calls the recorder in create, update (flags a resubmission when the status was `REJECTED_BY_DRIVER`), approve, reject and correct | 1–5 |
@@ -125,11 +127,11 @@ control and passes each group, in order, to a pure translator. It returns
 |---|---|---|
 | `performance/domain/MetricsScope.java` | Pure branch scoping (D9) | 28–32 |
 | `performance/domain/AuditEventTranslator.java` | Pure: the ordered audit entries of one control in, events plus skip reasons out. It computes rejection rounds, resubmissions and times to driver response | 17, 19, 20 |
-| `performance/repository/PerformanceMetricsRepository.java` | SQL: per-user summary (control events plus dispenser movements), daily trend, coverage, top reasons, top products | 21–27 |
+| `performance/repository/PerformanceMetricsRepository.java` | SQL: per-user summary (control events, faulty controls, dispenser movements), daily trend, coverage, top reasons | 21–27 |
 | `performance/service/PerformanceMetricsService(Impl).java` | Resolves the scope, the date range and "today" from the `Clock`, builds the responses | 21–32 |
 | `performance/service/AuditHistoryImportService(Impl).java` | Cutoff, pages through the audit log, groups by control, translates, inserts with `ON CONFLICT DO NOTHING`, report | 17–20 |
 | `performance/controller/PerformanceController.java` | `GET /performance/summary`, `GET /performance/users/{userId}`, `POST /performance/import`; `@PreAuthorize` | 21–32 |
-| `performance/dto/*` | `PerformanceSummaryResponse` (rows, coverage, topProducts, topReasons), `UserTrendResponse`, `ImportReport` | 21–26 |
+| `performance/dto/*` | `PerformanceSummaryResponse` (rows, coverage, topReasons), `UserTrendResponse`, `ImportReport` | 21–25 |
 | `docs/PERFORMANCE.md` | API contract for the panel, following the existing `docs/*.md` | — |
 
 ### Phase C — react-nati
@@ -147,7 +149,7 @@ control and passes each group, in order, to a pure translator. It returns
 | `features/performance/lib/dateRange.ts` | Pure: current week Monday to Sunday in local time, formatted without `toISOString()` | 33 |
 | `features/performance/lib/sortRows.ts` | Pure: sort by any column, with empty values last | 33 |
 | `features/performance/hooks/usePerformanceSummary.ts`, `useUserTrend.ts` | Fetching plus loading, error and empty state | 33–36 |
-| `features/performance/components/PerformanceTable.tsx`, `UserTrendPanel.tsx`, `MissingEntriesList.tsx`, `TopProductsList.tsx` | Rendering only; the trend chart follows `statistics/components/DailyVolumeChart.tsx` (no chart library) | 33–36 |
+| `features/performance/components/PerformanceTable.tsx`, `UserTrendPanel.tsx`, `MissingEntriesList.tsx` | Rendering only; the trend chart follows `statistics/components/DailyVolumeChart.tsx` (no chart library) | 33–36 |
 | `features/performance/pages/PerformancePage.tsx` | Puts the page together | 33–36 |
 | `app/router/index.tsx` plus the navigation | `performance` route, visible to admin and supervisor | 28, 33 |
 

@@ -55,13 +55,11 @@ it, and shows the resulting metrics in the admin panel.
 - **First-pass acceptance**: an entry control the driver accepted with 0 rejection rounds.
 - **Time to driver response**: time from the last time the control was sent to the driver
   (created, or resubmitted after a rejection) until the driver approved or rejected it.
-- **Units with difference**: sum of the absolute differences of a control's items, as last
-  submitted by the controller (before any supervisor correction). [NEEDS CLARIFICATION] how an
-  item's difference is calculated: the item's `differenceQuantity` is never filled in today. Blocks
-  Phase B (FR-21 difference rate, FR-26); Phase A records each item's raw quantities so any rule can
-  be applied later.
-- **Difference rate**: units with difference divided by total units, both summed over all the
-  controls in the scope (a ratio of sums, not an average of ratios).
+- **Faulty control**: a stock control that was rejected by the driver at least once, edited after it
+  was submitted, or corrected by a supervisor. Any of the three means the controller got it wrong;
+  errors are measured by how many times this happens, not by how many items or units were wrong.
+  A faulty control counts on the event date of its submission.
+- **Error rate**: faulty controls divided by submitted controls in the same scope and range.
 - **Load duration**: time from the moment the first serial is added to an empty dispenser
   load/unload form until that movement is successfully submitted, measured on the device.
 - **Slow load**: a load duration longer than 30 minutes. A normal load takes 10 to 15 minutes,
@@ -83,7 +81,7 @@ it, and shows the resulting metrics in the admin panel.
 
 ### Recording stock-control events
 - FR-1: WHEN a stock control is created, THE SYSTEM SHALL record a "control submitted" event with
-  the control type, branch, route, responsible user, number of items, total units and units with difference.
+  the control type, branch, route, responsible user, number of items and total units.
 - FR-2: WHEN a stock control is edited before being sent to Aguas, THE SYSTEM SHALL record a
   "control edited" event with the actor and the new figures; IF the control was rejected by the
   driver, THEN the event SHALL be marked as a resubmission after rejection.
@@ -95,7 +93,7 @@ it, and shows the resulting metrics in the admin panel.
   response and the reason.
 - FR-5: WHEN a supervisor or admin corrects an entry control already sent to Aguas, THE SYSTEM SHALL
   record a "control corrected" event with the corrector as actor, the controller as responsible user,
-  the reason, and the units with difference before and after this correction.
+  the reason and the corrected figures.
 - FR-6: IF a stock control is in cancelled status when metrics are computed, THEN THE SYSTEM SHALL NOT
   count it as a submitted control nor as an expected entry. (No operation cancels controls today; the
   status can only be set directly in the database.)
@@ -145,8 +143,8 @@ it, and shows the resulting metrics in the admin panel.
 ### Metrics query
 - FR-21: WHEN an admin or supervisor requests metrics for a range of event dates, THE SYSTEM SHALL
   return, per responsible user: controls submitted (by type), edits, resubmissions after rejection,
-  rejection rounds, first-pass acceptance rate, average time to driver response, corrections, difference
-  rate, dispenser movements (by type), serials moved, serials excluded, average and median load duration,
+  rejection rounds, first-pass acceptance rate, average time to driver response, corrections, faulty
+  controls, error rate, dispenser movements (by type), serials moved, serials excluded, average and median load duration,
   number of slow loads, average and median gap between trucks excluding pauses, number of pauses,
   cancellations and controls/movements with integration errors.
 - FR-22: WHEN metrics are requested for a range, THE SYSTEM SHALL return, per branch and control date in
@@ -158,8 +156,7 @@ it, and shows the resulting metrics in the admin panel.
 - FR-24: THE SYSTEM SHALL return the FR-21 metrics per event date for one responsible user, to show a trend.
 - FR-25: THE SYSTEM SHALL return the most frequent rejection and correction reasons in the range, with
   their count, per responsible user and per actor.
-- FR-26: THE SYSTEM SHALL return the products with the most units with difference in the range, within
-  the same branch and type filters.
+- FR-26: (Removed on 2026-10-28: errors are measured by count of faulty controls, not by product or units.)
 - FR-27: IF an average, median or rate has no data in the range, THEN THE SYSTEM SHALL return it as empty;
   counts with no activity SHALL be zero.
 
@@ -179,8 +176,7 @@ it, and shows the resulting metrics in the admin panel.
   to Sunday, Argentina time); every column is sortable.
 - FR-34: WHEN the manager selects a user, THE PANEL SHALL show their daily trend (FR-24) and their top
   rejection and correction reasons (FR-25).
-- FR-35: THE PANEL SHALL show the missing entries per control date (FR-22) with the routes involved,
-  and the products with most differences (FR-26).
+- FR-35: THE PANEL SHALL show the missing entries per control date (FR-22) with the routes involved.
 - FR-36: THE PANEL SHALL show explicit loading, error and empty states, with every text in Spanish.
 
 ## Non-functional requirements
@@ -197,7 +193,8 @@ it, and shows the resulting metrics in the admin panel.
 - A control edited while pending driver approval (not rejected): an edited event, not a resubmission.
 - A control created by one user and edited by another: the responsible user stays the control's controller.
 - An entry approved or rejected by a supervisor instead of the driver: the supervisor is the actor.
-- Several corrections of the same control: each correction compares with the figures right before it.
+- A control rejected twice, edited twice and corrected once is one faulty control; its 2 rejection rounds,
+  2 edits and 1 correction still count separately in their own columns.
 - Exit made on Saturday for Monday (Sunday skipped): it counts on Saturday for workload and expects an
   entry on Monday for coverage.
 - Today's expected entries are not missing until the day ends (trucks may still be on the road).
@@ -218,6 +215,7 @@ it, and shows the resulting metrics in the admin panel.
 - Duration of stock controls (only dispenser loads are timed in this iteration).
 - Changing the audit log, its retention, or the integration log retention.
 - Importing integration-error history (integration logs only keep 90 days and are not imported).
+- Differences per item, unit or product (the item's `differenceQuantity` is never filled in today).
 - Requiring a branch when creating supervisors (existing supervisors without one get FR-31's message).
 
 ## Approved interface changes
@@ -233,9 +231,8 @@ endpoint, and supervisor branch scoping for this endpoint only.
 - Manual demo in the panel: a week of metrics for one branch, one controller's trend, missing entries.
 
 ## Open questions
-- [NEEDS CLARIFICATION] Definition of an item's difference (see "Units with difference"). Blocks Phase B only.
-
-Answered on 2026-10-28:
+None. Answered on 2026-10-28:
+- Errors are counted per control (rejected, edited or corrected), not per item (Definitions, FR-21).
 - Admins see every branch; supervisors only their own (FR-29–31).
 - Gaps of 60 minutes or more are pauses.
 - Coverage is included: exits for a day are the entries expected back that day (FR-22).

@@ -30,5 +30,8 @@
     Open: (2) the user will not run the Postgres tests locally: V40/V41, the trigger and findByRouteNumber are
     validated on the homologation deploy (Flyway logs, then one entry control, one driver rejection and
     one dispenser movement by hand) before production;
-    (3) the item difference rule, which blocks Phase B.
+    (3) nothing else blocks Phase B.
+  - Errors are counted per control, not per item (user, 2026-10-28): a control is faulty if the driver
+    rejected it, it was edited after submitting, or a supervisor corrected it. FR-26 (products with most
+    differences) was removed.
   - Item differenceQuantity is never computed in the code (always null) despite docs/STOCK_CONTROLS.md.
