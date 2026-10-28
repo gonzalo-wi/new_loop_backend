@@ -2,6 +2,7 @@ package com.loop.new_loop_api.stockcontrols.service;
 
 import com.loop.new_loop_api.audit.service.iService.AuditService;
 import com.loop.new_loop_api.common.exception.UniqueConstraintViolation;
+import com.loop.new_loop_api.common.security.AuthenticatedUser;
 import com.loop.new_loop_api.common.security.CurrentUserProvider;
 import com.loop.new_loop_api.integrations.aguas.metrics.AguasControlMetrics;
 import com.loop.new_loop_api.users.entity.Role;
@@ -124,9 +125,10 @@ public class StockControlServiceImpl implements StockControlService {
     public Page<StockControlResponse> getAllControls(
             ControlType type, ControlStatus status, UUID routeId, UUID controllerId, UUID branchId,
             LocalDate from, LocalDate to, LocalDate createdFrom, LocalDate createdTo, Pageable pageable) {
-        var scopedBranchId = scopeBranchId(branchId);
+        var scopedBranchId     = scopeBranchId(branchId);
+        var scopedControllerId = scopeControllerId(controllerId);
         return stockControlRepository
-                .findAll(withFilters(type, status, routeId, controllerId, scopedBranchId, from, to, createdFrom, createdTo), pageable)
+                .findAll(withFilters(type, status, routeId, scopedControllerId, scopedBranchId, from, to, createdFrom, createdTo), pageable)
                 .map(stockControlMapper::toResponse);
     }
 
@@ -311,6 +313,14 @@ public class StockControlServiceImpl implements StockControlService {
                 .filter(user -> user.role().isBranchScoped())
                 .map(user -> user.branchId())
                 .orElse(requestedBranchId);
+    }
+
+    /** Controllers only list the controls they created; the rest of the roles keep the requested filter. */
+    private UUID scopeControllerId(UUID requestedControllerId) {
+        return currentUserProvider.current()
+                .filter(user -> user.role() == Role.CONTROLADOR)
+                .map(AuthenticatedUser::id)
+                .orElse(requestedControllerId);
     }
 
     /** Products not covered by the request are added with quantity 0, so the control (and Aguas) always sees the full catalog. */

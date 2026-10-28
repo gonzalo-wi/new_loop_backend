@@ -29,6 +29,7 @@ import com.loop.new_loop_api.stockcontrols.exception.StockControlNotModifiableEx
 import com.loop.new_loop_api.stockcontrols.mapper.StockControlMapper;
 import com.loop.new_loop_api.stockcontrols.pdf.RemitoPdfGenerator;
 import com.loop.new_loop_api.stockcontrols.repository.StockControlRepository;
+import com.loop.new_loop_api.stockcontrols.repository.StockControlSpecification;
 import com.loop.new_loop_api.users.entity.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +52,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -429,5 +435,37 @@ class StockControlServiceImplTest {
 
         verify(stockControlRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    // 8. History: a controller only lists the controls they created
+    @Test
+    void should_listOnlyOwnControls_when_controllerAsksForAnotherControllersControls() {
+        var controller = nonSupervisor(Role.CONTROLADOR);
+        assertListedControllerId(controller, UUID.randomUUID(), controller.id());
+    }
+
+    @Test
+    void should_listOnlyOwnControls_when_controllerAsksWithoutControllerFilter() {
+        var controller = nonSupervisor(Role.CONTROLADOR);
+        assertListedControllerId(controller, null, controller.id());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"SUPERVISOR", "ADMIN", "REPARTIDOR"})
+    void should_keepRequestedControllerFilter_when_userIsNotController(Role role) {
+        assertListedControllerId(nonSupervisor(role), null, null);
+    }
+
+    private void assertListedControllerId(AuthenticatedUser user, UUID requested, UUID expected) {
+        when(currentUserProvider.current()).thenReturn(Optional.of(user));
+        when(stockControlRepository.findAll(org.mockito.ArgumentMatchers.<Specification<StockControl>>any(), any(Pageable.class))).thenReturn(Page.empty());
+
+        try (var specs = mockStatic(StockControlSpecification.class)) {
+            stockControlService.getAllControls(null, null, null, requested, null, null, null, null, null, Pageable.unpaged());
+
+            specs.verify(() -> StockControlSpecification.withFilters(
+                    isNull(), isNull(), isNull(), expected == null ? isNull() : eq(expected),
+                    any(), isNull(), isNull(), isNull(), isNull()));
+        }
     }
 }
