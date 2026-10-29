@@ -209,3 +209,60 @@ and supervisor). The panel has no unit-test runner: pure logic lives in `lib/` f
   - Run the panel against a local backend on the `loop_test` database (which already has seeded events and
     movements) with a local test admin user, and go through every FR-33–36 case, also as a supervisor.
   - Done when: each case is checked with a screenshot, and `npx tsc --noEmit` and `npm run build` are clean.
+
+## Phase E — Panel improvements (new-loop-api, then new-loop-front)
+
+Status: approved (2026-10-29), implemented
+
+Spec change of 2026-10-29: FR-21 (faulty breakdown) and FR-37–44. Backend first (additive), then the
+panel. Checks: backend `./mvnw test` with `LOOP_TEST_DB_URL`; panel `npx tsc --noEmit` and `npm run build`,
+plus a check by hand in the browser (no unit-test runner). Every text in Spanish.
+
+- [x] **T30. Faulty breakdown in the metrics API.** FR-21
+  - Test first in `PerformanceMetricsRepositoryTest`: a control rejected and later corrected counts once in
+    "rejected" and once in "corrected"; one edited while pending counts in "edited"; in the daily trend
+    they count on the submission day. Then `CONTROL_SQL`, `ControlMetricsRow`, DTO and mapper
+    (`rejectedControls`, `editedControls`, `correctedControls`), `docs/PERFORMANCE.md`.
+  - Done when: `./mvnw test` is green with `LOOP_TEST_DB_URL` and existing fields are unchanged.
+
+- [x] **T31. Types and contract in the panel.** FR-42
+  - The three fields in `types.ts` and `api.md`.
+  - Done when: `npx tsc --noEmit` is clean.
+
+- [x] **T32. Low sample.** FR-37, FR-38
+  - `lib/lowSample.ts`, optional tier in `sortRows`, "pocos datos" next to the error rate in the controls
+    table and the detail.
+  - Done when: in the browser a user with 9 submitted shows "pocos datos" and sorts after users with 10 or
+    more in both directions; one with 10 does not; one with 0 shows nothing.
+
+- [x] **T33. Filters in the URL.** FR-39, FR-40
+  - `lib/urlFilters.ts` and `usePerformanceFilters` on `useSearchParams` (replace, not push).
+  - Done when: reloading and opening a copied link keep range, branch and open user; a bad date, a
+    100-day range, an unknown branch, a user with no row and a supervisor's `branch` fall back to the
+    default and leave the address.
+
+- [x] **T34. Comparison with the previous period.** FR-41
+  - `previousPeriod` in `dateRange.ts`, `totalsDelta` in `summary.ts`, a second summary query, the change on
+    each tile (points for the error rate).
+  - Done when: the week tiles show the change against the week before; a previous period with no activity
+    shows the difference over 0; a failing previous request leaves the tiles without change.
+
+- [x] **T35. Detail: breakdown, previous/next and focus.** FR-42
+  - Tables pass their sorted rows on select; the modal shows the breakdown, previous/next (disabled at the
+    ends, skipping "Sin usuario"); `shared/hooks/useFocusTrap.ts`.
+  - Done when: in the browser previous/next follow the table order, Tab never leaves the modal, and closing
+    returns focus to the row.
+
+- [x] **T36. Weekly charts for long ranges.** FR-43
+  - `lib/weekly.ts`; the modal uses it when the range is longer than 31 days.
+  - Done when: a 31-day range shows days; a 32-day range starting on a Wednesday shows weeks, with partial
+    first and last weeks.
+
+- [x] **T37. CSV export.** FR-44
+  - `lib/csv.ts`, `exportValue` per column, an "Exportar CSV" button on each table.
+  - Done when: both files open in Excel with accents, one column per field, decimal commas and blanks for
+    no data; an empty table downloads only the header; a name with `;` stays in one column.
+
+- [x] **T38. Check in the browser.** FR-37–44
+  - Panel against a local backend on `loop_test` with a local test admin and a test supervisor.
+  - Done when: every Phase E case is checked, and `npx tsc --noEmit` and `npm run build` are clean.

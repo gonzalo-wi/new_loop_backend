@@ -11,6 +11,10 @@ four phases that can each be merged and released on their own:
 | B | new-loop-api | Metrics API and history import | FR-17–32 |
 | C | react-nati | Load timer in the dispenser screen | FR-15, FR-16 (client side) |
 | D | new-loop-front | "Desempeño" page | FR-33–36 |
+| E | new-loop-api + new-loop-front | Panel improvements: faulty breakdown, low sample, URL, comparison, detail, CSV | FR-21 (breakdown), FR-37–44 |
+
+Phase E (added 2026-10-29): the backend part is additive, so it ships first and the current panel keeps
+working; the panel part needs it deployed only for the breakdown (FR-42).
 
 A must ship first, because live recording has to start before the import runs (FR-17 cuts off at
 the first live event). B, C and D only need A. C can ship as soon as A is deployed, because the
@@ -153,6 +157,56 @@ control and passes each group, in order, to a pure translator. It returns
 | `features/performance/pages/PerformancePage.tsx` | Puts the page together | 33–36 |
 | `app/router/index.tsx` plus the navigation | `performance` route, visible to admin and supervisor | 28, 33 |
 
+### Phase E — panel improvements (new-loop-api, then new-loop-front)
+
+**D11. Breakdown in the same SQL.** `CONTROL_SQL` gets three counts next to `faulty_controls`, each the
+submitted events whose control has at least one event of that type (`rejected`, `edited`, `corrected`),
+with the same unbounded `EXISTS` as the total so they count on the submission date. One query serves the
+summary and the daily trend, so both get them. Discarded: deriving them in the panel from `edits`,
+`rejectionRounds` and `corrections`, which count events, not distinct controls.
+
+**D12. Filters in the URL with `useSearchParams`.** React Router is already a dependency. Parameters
+`from`, `to`, `branch` and `user`; a pure parser validates them (dates, FR-27a range, admin only for
+`branch`) and the hook rewrites the address with `replace` so invalid values disappear without a new
+history entry. `branch` and `user` are checked against the loaded branches and rows. Discarded:
+`localStorage`, which survives a reload but cannot be shared.
+
+**D13. Previous period with a second summary request.** Same endpoint, previous range from a pure
+function; its totals feed the tiles. If it fails or is loading, the tiles show no change instead of an
+error. Discarded: a backend "previous" block, which changes the API for something the panel can compute.
+
+**D14. Low sample in the sorting.** `sortRows` gets an optional `tierOf(row, key)`: rows sort by tier
+first, then by value, so low-sample users go after the rest for `errorPercent` in both directions. Other
+columns pass no tier and behave as today.
+
+**D15. Detail navigation.** A table calls `onSelect(user, orderedRows)` with its sorted rows; the page
+keeps that list and moves within it, skipping "Sin usuario". Focus trap is a small hook in
+`shared/hooks/useFocusTrap.ts` (no dependency): Tab/Shift+Tab cycle inside the dialog, focus returns to
+the element that opened it on close.
+
+**D16. CSV without a library.** A pure `lib/csv.ts` builds the text (BOM, `;`, decimal comma, quoting
+of `;`, `"` and line breaks); each column gets an `exportValue` next to its `value`, so the file matches
+the table. Download through a `Blob` and a temporary link, as `stock/components/RemitoActions.tsx` does.
+
+| File | Responsibility | FR |
+|---|---|---|
+| backend `performance/repository/PerformanceMetricsRepository.java` | Three breakdown counts in `CONTROL_SQL` and `ControlMetricsRow` | 21 |
+| backend `performance/dto/PerformanceSummaryResponse.java`, `performance/mapper/PerformanceMetricsMapper.java` | `rejectedControls`, `editedControls`, `correctedControls` in `ControlMetrics` | 21 |
+| backend `docs/PERFORMANCE.md`; front `api.md` | The three new fields | 21 |
+| `features/performance/types.ts` | The three fields | 42 |
+| `features/performance/lib/lowSample.ts` | Pure: `LOW_SAMPLE_MIN = 10`, `isLowSample(controls)` (submitted 1–9) | 37, 38 |
+| `features/performance/lib/sortRows.ts` | Optional tier before the value | 38 |
+| `features/performance/lib/urlFilters.ts` | Pure: parse and serialize `from`, `to`, `branch`, `user` | 39, 40 |
+| `features/performance/lib/dateRange.ts` | `previousPeriod(range)` | 41 |
+| `features/performance/lib/summary.ts` | `totalsDelta(current, previous)`: counts and error-rate points | 41 |
+| `features/performance/lib/weekly.ts` | Pure: group days by Monday–Sunday week, summing counts, partial edge weeks | 43 |
+| `features/performance/lib/csv.ts` | Pure: rows and columns to CSV text; file name with table and range | 44 |
+| `features/performance/hooks/usePerformance.ts` | Filters from the URL; previous-period summary query | 39–41 |
+| `shared/hooks/useFocusTrap.ts` | Keeps focus inside a dialog and restores it | 42 |
+| `features/performance/components/ControlsTable.tsx`, `DispensersTable.tsx` | "pocos datos", tier, `exportValue`, export button, ordered rows on select | 37, 38, 42, 44 |
+| `features/performance/components/UserDetailModal.tsx` | Breakdown, previous/next, focus trap, weekly charts over 31 days | 37, 42, 43 |
+| `features/performance/pages/PerformancePage.tsx` | Tiles with the change, the selected list from the URL | 39–42 |
+
 ## Algorithms
 
 ### Recording a rejection or approval (FR-3, FR-4)
@@ -208,6 +262,11 @@ for entry in entries ordered by createdAt:
   `npx tsc --noEmit`.
 - **Panel:** `npx tsc --noEmit`. There is no unit-test runner, so `dateRange`, `sortRows` and the
   states are checked by hand on homologation (FR-33–36).
+- **Phase E:** the backend breakdown is a Postgres repository test (a control rejected and later
+  corrected counts once in each; a control edited while pending counts in "edited"; the daily trend puts
+  them on the submission day). The panel pure modules (`lowSample`, `sortRows` tiers, `urlFilters`,
+  `previousPeriod`, `totalsDelta`, `weekly`, `csv`) still have no runner and are checked by hand in the
+  browser with the spec's edge cases; the CSV is opened in Excel.
 - Commands: backend `./mvnw test` (Git Bash), app `npx jest` and `npx tsc --noEmit`, front
   `npx tsc --noEmit`.
 
