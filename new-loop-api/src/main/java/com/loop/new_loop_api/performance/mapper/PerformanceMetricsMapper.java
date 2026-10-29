@@ -23,7 +23,7 @@ public class PerformanceMetricsMapper {
     private static final double ONE_DECIMAL        = 10.0;
 
     public static final ControlMetrics NO_CONTROLS =
-            new ControlMetrics(0, 0, 0, 0, 0, null, null, 0, 0, null, 0);
+            new ControlMetrics(0, 0, 0, 0, 0, null, null, 0, 0, 0, 0, 0, null, 0);
 
     public static final DispenserMetrics NO_DISPENSERS =
             new DispenserMetrics(0, 0, 0, 0, 0, null, null, 0, null, null, 0, 0, 0);
@@ -35,6 +35,7 @@ public class PerformanceMetricsMapper {
                 row.exitsSubmitted(), row.entriesSubmitted(), row.edits(), row.resubmissions(),
                 row.rejectionRounds(), percent(row.firstPassApprovals(), row.approvals()),
                 minutes(row.avgResponseSeconds()), row.corrections(), row.faultyControls(),
+                row.rejectedControls(), row.editedControls(), row.correctedControls(),
                 percent(row.faultyControls(), submitted), row.controlsWithIntegrationErrors());
     }
 

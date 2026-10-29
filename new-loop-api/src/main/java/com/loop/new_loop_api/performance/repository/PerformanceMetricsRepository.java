@@ -36,6 +36,7 @@ public class PerformanceMetricsRepository {
                                     int exitsSubmitted, int entriesSubmitted, int edits, int resubmissions,
                                     int rejectionRounds, int approvals, int firstPassApprovals,
                                     Double avgResponseSeconds, int corrections, int faultyControls,
+                                    int rejectedControls, int editedControls, int correctedControls,
                                     int controlsWithIntegrationErrors) {}
 
     public record DispenserMetricsRow(UUID userId, String username, LocalDate day,
@@ -81,6 +82,18 @@ public class PerformanceMetricsRepository {
                                       AND EXISTS (SELECT 1 FROM operation_events f
                                                   WHERE f.subject_id = e.subject_id
                                                     AND f.event_type IN (:rejected, :edited, :corrected))) AS faulty_controls,
+                   count(*) FILTER (WHERE e.event_type = :submitted
+                                      AND EXISTS (SELECT 1 FROM operation_events f
+                                                  WHERE f.subject_id = e.subject_id
+                                                    AND f.event_type = :rejected))  AS rejected_controls,
+                   count(*) FILTER (WHERE e.event_type = :submitted
+                                      AND EXISTS (SELECT 1 FROM operation_events f
+                                                  WHERE f.subject_id = e.subject_id
+                                                    AND f.event_type = :edited))    AS edited_controls,
+                   count(*) FILTER (WHERE e.event_type = :submitted
+                                      AND EXISTS (SELECT 1 FROM operation_events f
+                                                  WHERE f.subject_id = e.subject_id
+                                                    AND f.event_type = :corrected)) AS corrected_controls,
                    count(DISTINCT e.subject_id) FILTER (WHERE e.event_type = :integrationError) AS with_errors
             FROM e
             GROUP BY e.responsible_user_id, e.day
@@ -223,7 +236,8 @@ public class PerformanceMetricsRepository {
                 rs.getInt("exits_submitted"), rs.getInt("entries_submitted"), rs.getInt("edits"),
                 rs.getInt("resubmissions"), rs.getInt("rejection_rounds"), rs.getInt("approvals"),
                 rs.getInt("first_pass"), nullableDouble(rs, "avg_response"), rs.getInt("corrections"),
-                rs.getInt("faulty_controls"), rs.getInt("with_errors")));
+                rs.getInt("faulty_controls"), rs.getInt("rejected_controls"), rs.getInt("edited_controls"),
+                rs.getInt("corrected_controls"), rs.getInt("with_errors")));
     }
 
     public List<DispenserMetricsRow> findDispenserMetrics(MetricsQuery query) {

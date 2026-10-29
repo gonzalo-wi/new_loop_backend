@@ -27,6 +27,10 @@ public record PerformanceSummaryResponse(
             Double avgDriverResponseMinutes,
             int corrections,
             int faultyControls,
+            // A control with several causes counts in each, so these may add up to more than faultyControls.
+            int rejectedControls,
+            int editedControls,
+            int correctedControls,
             Double errorPercent,
             int controlsWithIntegrationErrors) {}
 

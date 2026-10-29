@@ -196,7 +196,7 @@ class PerformanceMetricsServiceImplTest {
     }
 
     private static ControlMetricsRow controlRow(UUID userId, String username, LocalDate day) {
-        return new ControlMetricsRow(userId, username, day, 1, 3, 1, 1, 1, 3, 2, 450.0, 0, 1, 0);
+        return new ControlMetricsRow(userId, username, day, 1, 3, 1, 1, 1, 3, 2, 450.0, 0, 1, 1, 0, 0, 0);
     }
 
     private static DispenserMetricsRow dispenserRow(UUID userId, String username, LocalDate day) {

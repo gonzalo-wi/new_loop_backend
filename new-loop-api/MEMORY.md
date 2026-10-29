@@ -44,6 +44,13 @@
   - Errors are counted per control, not per item (user, 2026-10-28): a control is faulty if the driver
     rejected it, it was edited after submitting, or a supervisor corrected it. FR-26 (products with most
     differences) was removed.
+  - Phase E spec change approved (2026-10-29): faulty breakdown (rejected/edited/corrected, distinct
+    controls, additive API fields), low sample under 10 submitted ("pocos datos", sorted last by error
+    rate), filters in the URL, previous-period deltas, detail prev/next + focus trap, weekly charts over
+    31 days, CSV export (BOM, ";", decimal comma, no library). Plan D11–D16, tasks T30–T38 implemented
+    (2026-10-29), checked in the browser against loop_test; not committed. Picking one end of the range
+    now moves the other to keep it valid (an invalid range in the URL would be reset). Deploy the backend
+    before the panel: the new detail reads the breakdown fields.
   - Item differenceQuantity is never computed in the code (always null) despite docs/STOCK_CONTROLS.md.
 
 ## Local Postgres for tests

@@ -75,6 +75,9 @@ El rango máximo es de **92 días**. Si `to` es anterior a `from` o el rango es 
           "avgDriverResponseMinutes": 6.5,
           "corrections": 1,
           "faultyControls": 3,
+          "rejectedControls": 2,
+          "editedControls": 2,
+          "correctedControls": 1,
           "errorPercent": 13.0,
           "controlsWithIntegrationErrors": 0
         },
@@ -130,6 +133,9 @@ Un elemento por usuario con actividad en el rango. La actividad sin usuario cono
 | `avgDriverResponseMinutes`       | Tiempo de respuesta promedio del repartidor. `null` sin respuestas   |
 | `corrections`                    | Correcciones de un supervisor después de mandar a Aguas              |
 | `faultyControls`                 | Controles mal hechos (ver reglas)                                    |
+| `rejectedControls`               | De los mal hechos, cuántos rechazó el repartidor al menos una vez    |
+| `editedControls`                 | De los mal hechos, cuántos se editaron después de enviarlos          |
+| `correctedControls`              | De los mal hechos, cuántos corrigió un supervisor                    |
 | `errorPercent`                   | Tasa de error. `null` sin controles enviados                         |
 | `controlsWithIntegrationErrors`  | Controles que fallaron al menos una vez al mandarse a Aguas          |
 

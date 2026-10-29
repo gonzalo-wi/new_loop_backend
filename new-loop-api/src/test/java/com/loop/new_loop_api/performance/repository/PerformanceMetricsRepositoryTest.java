@@ -104,6 +104,37 @@ class PerformanceMetricsRepositoryTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void shouldSplitFaultyControlsByCauseCountingEachControlOnce() {
+        var c1 = UUID.randomUUID(); // rejected twice and later corrected: once in each cause
+        event(c1, OperationEventType.CONTROL_SUBMITTED, ControlType.ENTRY, userA, MON, b -> b);
+        event(c1, OperationEventType.CONTROL_REJECTED, ControlType.ENTRY, userA, MON, b -> b.rejectionRound(1));
+        event(c1, OperationEventType.CONTROL_REJECTED, ControlType.ENTRY, userA, MON, b -> b.rejectionRound(2));
+        event(c1, OperationEventType.CONTROL_CORRECTED, ControlType.ENTRY, userA, TUE, b -> b.reason("Mal cargado"));
+        var c2 = UUID.randomUUID(); // edited while pending
+        event(c2, OperationEventType.CONTROL_SUBMITTED, ControlType.ENTRY, userA, MON, b -> b);
+        event(c2, OperationEventType.CONTROL_EDITED, ControlType.ENTRY, userA, MON, b -> b);
+        event(UUID.randomUUID(), OperationEventType.CONTROL_SUBMITTED, ControlType.EXIT, userA, TUE, b -> b);
+
+        var a = row(repository.findControlMetrics(query(false, null)), userA);
+        assertThat(a.faultyControls()).isEqualTo(2);
+        assertThat(a.rejectedControls()).isEqualTo(1);
+        assertThat(a.editedControls()).isEqualTo(1);
+        assertThat(a.correctedControls()).isEqualTo(1);
+        // Corrected on Tuesday, but the breakdown counts on the day the control was submitted (Monday).
+        var perDay = repository.findControlMetrics(query(true, userA));
+        assertThat(perDay).filteredOn(r -> MON.equals(r.day())).singleElement().satisfies(r -> {
+            assertThat(r.rejectedControls()).isEqualTo(1);
+            assertThat(r.editedControls()).isEqualTo(1);
+            assertThat(r.correctedControls()).isEqualTo(1);
+        });
+        assertThat(perDay).filteredOn(r -> TUE.equals(r.day())).singleElement().satisfies(r -> {
+            assertThat(r.rejectedControls()).isZero();
+            assertThat(r.editedControls()).isZero();
+            assertThat(r.correctedControls()).isZero();
+        });
+    }
+
+    @Test
     void shouldSplitControlMetricsPerDayAndFilterByUserAndType() {
         var c1 = UUID.randomUUID();
         event(c1, OperationEventType.CONTROL_SUBMITTED, ControlType.ENTRY, userA, MON, b -> b);

@@ -2,6 +2,8 @@
 
 Status: approved
 
+<!-- Changed and approved on 2026-10-29: panel improvements (FR-21 breakdown, FR-37 to FR-44). -->
+
 <!-- Keep the "Status:" line and the [NEEDS CLARIFICATION] markers literal: commands search for them. -->
 
 ## Context and goal
@@ -59,7 +61,15 @@ it, and shows the resulting metrics in the admin panel.
   was submitted, or corrected by a supervisor. Any of the three means the controller got it wrong;
   errors are measured by how many times this happens, not by how many items or units were wrong.
   A faulty control counts on the event date of its submission.
+- **Faulty breakdown**: the faulty controls split by cause: rejected at least once, edited after
+  submission, corrected by a supervisor. A control with several causes counts once in each of them,
+  so the three may add up to more than the faulty total. Like the total, they count on the event date
+  of the control's submission.
 - **Error rate**: faulty controls divided by submitted controls in the same scope and range.
+- **Low sample**: a user with fewer than 10 submitted controls in the range; their error rate is shown
+  but flagged as not reliable.
+- **Previous period**: the range of the same number of days that ends the day before the selected
+  range starts (the week before a week, the 31 days before a 31-day range).
 - **Load duration**: time from the moment the first serial is added to an empty dispenser
   load/unload form until that movement is successfully submitted, measured on the device.
 - **Slow load**: a load duration longer than 30 minutes. A normal load takes 10 to 15 minutes,
@@ -146,7 +156,7 @@ it, and shows the resulting metrics in the admin panel.
 - FR-21: WHEN an admin or supervisor requests metrics for a range of event dates, THE SYSTEM SHALL
   return, per responsible user: controls submitted (by type), edits, resubmissions after rejection,
   rejection rounds, first-pass acceptance rate, average time to driver response, corrections, faulty
-  controls, error rate, dispenser movements (by type), serials moved, serials excluded, average and median load duration,
+  controls and their faulty breakdown, error rate, dispenser movements (by type), serials moved, serials excluded, average and median load duration,
   number of slow loads, average and median gap between trucks excluding pauses, number of pauses,
   cancellations and controls/movements with integration errors.
 - FR-22: WHEN metrics are requested for a range, THE SYSTEM SHALL return, per branch and control date in
@@ -182,6 +192,28 @@ it, and shows the resulting metrics in the admin panel.
   rejection and correction reasons (FR-25).
 - FR-35: THE PANEL SHALL show the missing entries per control date (FR-22) with the routes involved.
 - FR-36: THE PANEL SHALL show explicit loading, error and empty states, with every text in Spanish.
+- FR-37: WHILE a user has a low sample in the range, THE PANEL SHALL show "pocos datos" next to their
+  error rate, in the table and in their detail.
+- FR-38: WHEN the manager sorts by error rate, in either direction, THE PANEL SHALL list every user
+  without a low sample before every user with one; each group keeps the chosen order.
+- FR-39: THE PANEL SHALL keep the range, the branch (admins only) and the user whose detail is open in
+  the page address, so reloading the page or opening a copied link shows the same view.
+- FR-40: IF a value in the page address is invalid (not a date, a range FR-27a rejects, an unknown
+  branch, or a user with no row in the range), THEN THE PANEL SHALL ignore that value, use its default
+  (current week, all branches, no detail open) and remove it from the address.
+- FR-41: WHEN the summary for a range is shown, THE PANEL SHALL show on each summary tile the change
+  against the previous period: the difference in count for counts, and in percentage points for the
+  error rate.
+- FR-42: WHILE a user's detail is open, THE PANEL SHALL show their faulty breakdown, and SHALL let the
+  manager move to the previous or next user, in the order of the table it was opened from, without
+  closing it; keyboard focus SHALL stay inside the detail until it is closed, and return to the row
+  that opened it.
+- FR-43: IF the range is longer than 31 days, THEN THE PANEL SHALL group the detail's daily charts by
+  week (Monday to Sunday), summing the counts of each week.
+- FR-44: WHEN the manager exports a table (stock controls or dispensers), THE PANEL SHALL download a CSV
+  file with the visible rows in the current order and the same columns and headers as the table,
+  named with the table and the range; it SHALL open in Excel with accents readable and one column per
+  field (UTF-8 with byte order mark, semicolon separator, decimal comma), and empty values left blank.
 
 ## Non-functional requirements
 - Volume: a few hundred events per day (~150k per year). The metrics query for one month and one branch
@@ -211,11 +243,30 @@ it, and shows the resulting metrics in the admin panel.
 - A dispenser movement typed as "179" belongs to route "Rto 179"; a code with no digits, or a number
   shared by two routes, leaves the movement without branch (only admins see it, FR-32).
 - Imported history has no load durations and no integration errors (those were never recorded).
+- A control rejected and later corrected counts once as faulty, and once in "rejected" and once in
+  "corrected" in the breakdown.
+- A user with exactly 10 submitted controls is not a low sample; one with 0 submitted has no error rate
+  and shows no "pocos datos" (only dispenser activity).
+- A previous period before the first recorded events (or with no activity) shows its values as 0: the
+  tile shows the difference, never a percentage change over zero.
+- The previous period of a 92-day range is also 92 days: it is a valid range (FR-27a).
+- A supervisor's link with a branch in it: the branch is ignored, as the backend forces their own (FR-30).
+- The open user changes branch or disappears when the range changes: the detail closes (FR-40).
+- Previous/next at the first or last user does nothing (the control is disabled); "Sin usuario" has no
+  detail, so it is skipped.
+- Weeks at the edges of a long range are partial (e.g. a range starting on a Wednesday): the first and
+  last bars sum only the days inside the range.
+- An export of a table with no visible rows downloads only the header row.
+- A username containing a semicolon or quotes is quoted in the CSV so it stays in one column.
 
 ## Out of scope
 - Categorized rejection reasons chosen from a list (second stage; it changes the driver screen).
 - Metrics visible to controllers in the mobile app.
-- Excel/PDF export, alerts or targets per controller.
+- Excel (.xlsx) or PDF export (CSV only, FR-44), exporting the detail or coverage, alerts or targets per
+  controller.
+- A configurable low-sample threshold (fixed at 10 submitted controls).
+- Comparison against a range other than the previous period (e.g. same week last year).
+- A link from a user to the stock-controls list filtered by that user.
 - Duration of stock controls (only dispenser loads are timed in this iteration).
 - Changing the audit log, its retention, or the integration log retention.
 - Importing integration-error history (integration logs only keep 90 days and are not imported).
@@ -226,6 +277,9 @@ it, and shows the resulting metrics in the admin panel.
 Approved by the user in conversation on 2026-10-28: a new persisted store for events with no retention,
 an optional load-duration field on the dispenser movement request (older apps omit it), a new metrics
 endpoint, and supervisor branch scoping for this endpoint only.
+
+Approved by the user in conversation on 2026-10-29: three additive count fields (the faulty breakdown) in the metrics
+responses, summary and daily trend. Existing fields keep their meaning; older panels ignore the new ones.
 
 ## Completion criteria
 - Every FR with a green test: backend `./mvnw test` (with `LOOP_TEST_DB_URL` set, so the Postgres
