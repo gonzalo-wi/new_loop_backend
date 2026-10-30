@@ -6,7 +6,9 @@ import com.loop.new_loop_api.dispensers.entity.DispenserMovement;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
+import com.loop.new_loop_api.integrations.common.entity.IntegrationLog;
 import com.loop.new_loop_api.integrations.common.entity.IntegrationName;
+import com.loop.new_loop_api.integrations.common.entity.IntegrationStatus;
 import com.loop.new_loop_api.integrations.common.metrics.IntegrationCallMetrics;
 import com.loop.new_loop_api.integrations.common.repository.IntegrationLogRepository;
 import com.loop.new_loop_api.integrations.odoo.mapper.OdooRepairMapper;
@@ -32,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -104,5 +107,50 @@ class OdooRepairServiceImplTest {
         assertThat(movement.getOdooStatus()).isEqualTo("SENT");
         verify(integrationCallMetrics).recordSuccess(IntegrationName.ODOO);
         verify(operationEventRecorder, never()).integrationError(any(), any(DispenserMovement.class));
+    }
+
+    @Test
+    void shouldSendBaggedSerialsApartFromTheEquipmentToRepair() {
+        movement.getSerials().addAll(List.of("SN-2", "SN-3"));
+        movement.getBaggedSerials().add("SN-2");
+        server.expect(requestTo(CREATE_URL))
+                .andExpect(jsonPath("$.params.equipos.length()").value(2))
+                .andExpect(jsonPath("$.params.equipos[0]").value("SN-1"))
+                .andExpect(jsonPath("$.params.equipos[1]").value("SN-3"))
+                .andExpect(jsonPath("$.params.embolsados.length()").value(1))
+                .andExpect(jsonPath("$.params.embolsados[0]").value("SN-2"))
+                .andRespond(withSuccess("{\"result\":{\"success\":true}}", MediaType.APPLICATION_JSON));
+
+        service.send(movement.getId());
+
+        server.verify();
+        assertThat(movement.getOdooStatus()).isEqualTo("SENT");
+    }
+
+    @Test
+    void shouldSendTheSameSplit_when_aFailedRepairIsRetried() {
+        movement.getSerials().add("SN-2");
+        movement.getBaggedSerials().add("SN-2");
+        movement.setOdooStatus("ERROR");
+        var failed = IntegrationLog.builder()
+                .id(UUID.randomUUID())
+                .integrationName(IntegrationName.ODOO)
+                .operationType("REPAIR_CREATE")
+                .entityName("DispenserMovement")
+                .entityId(movement.getId())
+                .status(IntegrationStatus.ERROR)
+                .retryCount(0)
+                .build();
+        when(integrationLogRepository.findById(failed.getId())).thenReturn(Optional.of(failed));
+        server.expect(requestTo(CREATE_URL))
+                .andExpect(jsonPath("$.params.equipos.length()").value(1))
+                .andExpect(jsonPath("$.params.equipos[0]").value("SN-1"))
+                .andExpect(jsonPath("$.params.embolsados[0]").value("SN-2"))
+                .andRespond(withSuccess("{\"result\":{\"success\":true}}", MediaType.APPLICATION_JSON));
+
+        service.retry(failed.getId());
+
+        server.verify();
+        assertThat(failed.getStatus()).isEqualTo(IntegrationStatus.SENT);
     }
 }

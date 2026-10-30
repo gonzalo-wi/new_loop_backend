@@ -74,7 +74,8 @@ public class DispenserMovement {
     @Builder.Default
     private List<String> odooSkippedSerials = new ArrayList<>();
 
-    // UNLOAD serials that came back still bagged (undelivered new dispenser). Internal only: not sent out.
+    // UNLOAD serials that came back still bagged (undelivered new dispenser). Odoo gets them apart from the
+    // ones to repair, so it doesn't open a work order for them.
     @ElementCollection
     @BatchSize(size = COLLECTION_BATCH_SIZE)
     @CollectionTable(name = "dispenser_movement_bagged_serials", joinColumns = @JoinColumn(name = "movement_id"))
@@ -144,6 +145,16 @@ public class DispenserMovement {
         if (serials == null) return List.of();
         if (excludedSerials == null || excludedSerials.isEmpty()) return List.copyOf(serials);
         return serials.stream().filter(serial -> !excludedSerials.contains(serial)).toList();
+    }
+
+    /** Forwarded serials that go to Odoo's workshop: bagged ones need no repair. */
+    public List<String> repairSerials() {
+        return serialsToSend().stream().filter(serial -> !isBagged(serial)).toList();
+    }
+
+    /** Forwarded serials that came back still bagged; an excluded one stays out, like in serialsToSend(). */
+    public List<String> baggedSerialsToSend() {
+        return serialsToSend().stream().filter(this::isBagged).toList();
     }
 
     public boolean isBagged(String serial) {
