@@ -519,5 +519,5 @@ La confirmación de la carga en Odoo la hace el backend solo (no hay que llamar 
 
 ### Mapeo con Odoo (referencia interna)
 - `LOAD`   → `POST /api/v1/salida/create` (salida de equipos al reparto) — tras confirmarse en Aguas
-- `UNLOAD` → registro de ingreso a reparación — tras confirmarse en Aguas
+- `UNLOAD` → `POST /api/v1/repair/create` (ingreso a reparación) — tras confirmarse en Aguas. Los seriales marcados como embolsados (`baggedSerials`) van aparte, en `embolsados`, y no en `equipos`: Odoo solo abre orden de trabajo para `equipos`. `embolsados` va siempre (vacío si no hay). Un embolsado excluido por no registrado no va en ninguna de las dos listas. A Aguas le siguen llegando todos los seriales enviados, embolsados o no.
 - Consultas de solo lectura: `POST /api/v1/salida/disponibles` y `POST /api/v1/salida/validar` (expuestas a la app como `GET /odoo/available-equipment` y `POST /odoo/validate-equipment`)

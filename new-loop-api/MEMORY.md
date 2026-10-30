@@ -61,3 +61,9 @@
 - Pre-existing failures with Postgres enabled (not from spec 001): NewLoopApiApplicationTests (uses the
   default datasource, no password), DispenserSerialHistoryRepositoryTest.shouldPersistBaggedSerials
   (LazyInitializationException), StockControlDuplicateConcurrencyTest (no security context since 7607aa3).
+
+## Spec 002 — Odoo bagged serials (2026-10-30, implemented)
+- UNLOAD repair intake (`/api/v1/repair/create`) sends bagged serials in `embolsados`, not in `equipos`, so Odoo opens no work order for them. `embolsados` is always present there (empty when none).
+- Split lives in `DispenserMovement.repairSerials()` / `baggedSerialsToSend()`, both on top of `serialsToSend()`: an excluded (unregistered) bagged serial goes in neither list.
+- `OdooRepairParams.embolsados` is `NON_NULL`: the shared no-normalizados body is unchanged.
+- An all-bagged unload is still sent with `equipos: []`; if Odoo rejects it, it is a normal retryable error (decided with Gonza, Odoo behavior not confirmed).
