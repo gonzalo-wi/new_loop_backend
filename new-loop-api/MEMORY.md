@@ -67,3 +67,11 @@
 - Split lives in `DispenserMovement.repairSerials()` / `baggedSerialsToSend()`, both on top of `serialsToSend()`: an excluded (unregistered) bagged serial goes in neither list.
 - `OdooRepairParams.embolsados` is `NON_NULL`: the shared no-normalizados body is unchanged.
 - An all-bagged unload is still sent with `equipos: []`; if Odoo rejects it, it is a normal retryable error (decided with Gonza, Odoo behavior not confirmed).
+
+## Spec 003 — Session required, expires at midnight (2026-10-30, implemented)
+- Before: the app chain was `anyRequest().permitAll()`; the API was open without a token. Now default deny: public only `OPTIONS`, `POST /auth/login`, `GET /health`, `GET /app/version`, `GET /app/download/**`, `/error`. `POST /app/version` is ADMIN only. Stateless (no JSESSIONID).
+- 401/403 from the chain are written by `JsonAuthErrorHandler` with the `ApiError` body. An invalid/expired token leaves the request anonymous (public endpoints still work).
+- Tokens expire at the next midnight in Argentina (`SessionExpiry`, explicit zone; `JwtService` takes the `Clock`). `app.jwt.expiration` removed.
+- Panel and app end the session on 401 and when the token `exp` passes (30 s check + focus), and show "Tu sesión venció" on login.
+- Still open: per-endpoint role rules (any logged-in role can call e.g. `POST /users`). Swagger UI now needs a token.
+- Deploy backend, panel and new APK the same day; old APKs already log out on 401.

@@ -38,7 +38,7 @@ La API corre en un contenedor y apunta a una base PostgreSQL **externa** (ya exi
    ```
    POST http://<servidor>:8096/auth/login
    ```
-   La documentación Swagger queda en `http://<servidor>:8096/swagger-ui.html`.
+   La documentación Swagger queda en `http://<servidor>:8096/swagger-ui.html` (pide token desde la spec 003, ver `docs/AUTH.md`).
 
 ## Comandos útiles
 

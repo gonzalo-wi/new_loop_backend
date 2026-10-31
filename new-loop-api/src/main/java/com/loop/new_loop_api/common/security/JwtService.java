@@ -9,40 +9,46 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
 
 @Service
 public class JwtService {
 
-    @Value("${app.jwt.secret}")
-    private String secret;
+    private final String secret;
+    private final Clock  clock;
 
-    @Value("${app.jwt.expiration}")
-    private long expirationMs;
+    public JwtService(@Value("${app.jwt.secret}") String secret, Clock clock) {
+        this.secret = secret;
+        this.clock  = clock;
+    }
 
     public String generateToken(UserDetails userDetails, Map<String, Object> extraClaims) {
+        var now = clock.instant();
         return Jwts.builder()
                 .claims(extraClaims)
                 .subject(userDetails.getUsername())
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expirationMs))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(SessionExpiry.nextMidnight(now)))
                 .signWith(signingKey())
                 .compact();
     }
 
+    /** Throws if the token is malformed, not signed by us or expired. */
     public String extractUsername(String token) {
         return extractAllClaims(token).getSubject();
     }
 
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        return extractUsername(token).equals(userDetails.getUsername())
-                && !extractAllClaims(token).getExpiration().before(new Date());
+    public Instant extractExpiration(String token) {
+        return extractAllClaims(token).getExpiration().toInstant();
     }
 
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(signingKey())
+                .clock(() -> Date.from(clock.instant()))
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

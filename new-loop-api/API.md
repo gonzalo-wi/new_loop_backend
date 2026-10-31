@@ -411,4 +411,4 @@ Obtiene un control por ID con el detalle completo de sus items.
 
 ---
 
-> Swagger UI: `http://localhost:8080/swagger-ui.html`
+> Swagger UI: `http://localhost:8080/swagger-ui.html` (pide token desde la spec 003, ver `docs/AUTH.md`)
