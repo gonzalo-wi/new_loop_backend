@@ -193,12 +193,10 @@ si se saca eso).
 
 ## 6. Riesgos conocidos / deuda técnica (importante leer esto)
 
-- **Seguridad: no hay ningún endpoint protegido.** `SecurityConfig` tiene `.anyRequest().permitAll()`.
-  Todo el código de JWT/roles (`JwtAuthenticationFilter`, `AuthenticatedUser`, `@PreAuthorize`) existe
-  pero no está aplicado a nivel de autorización real todavía. Esto es especialmente sensible en
-  `POST /users` (cualquiera puede crear usuarios admin) y `POST /app/version` (cualquiera puede subir
-  un APK). Esto se dejó así deliberadamente durante el desarrollo para no trabar el frontend/mobile
-  mientras se armaban las features — **es lo primero que habría que cerrar** antes de un uso productivo real.
+- **Seguridad: autenticación sí, roles por endpoint todavía no.** Desde la spec 003 todo pide token
+  (salvo login, health y la consulta/descarga del APK) y `POST /app/version` es solo `ADMIN`. Pero una
+  vez logueado, **cualquier rol** puede llamar al resto, por ejemplo `POST /users` (un REPARTIDOR podría
+  crear un admin). Falta definir los roles por acción en una spec aparte.
 - **CI/CD**: no hay pipeline de deploy automático configurado. Hoy el deploy es manual (`git pull` +
   `docker compose up --build` a mano en el servidor, sección 5).
 - **Rotar credenciales**: dado que alguien del equipo se está yendo, correspondería rotar

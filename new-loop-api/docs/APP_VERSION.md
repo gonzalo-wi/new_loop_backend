@@ -44,6 +44,7 @@ Content-Type: multipart/form-data
 **Ejemplo con curl:**
 ```bash
 curl -X POST http://localhost:8095/app/version \
+  -H "Authorization: Bearer $TOKEN" \
   -F "version=1.1.0" \
   -F "mandatory=false" \
   -F "notes=Buscar mi camión + arreglos de carga" \
@@ -55,6 +56,8 @@ Devuelve el mismo objeto que `GET /app/version`, ya con la versión recién publ
 
 ### Errores
 - **`400`** — versión con formato inválido, falta el archivo, o el archivo no es `.apk`.
+- **`401`** — sin token, o con uno vencido (vence a la medianoche).
+- **`403`** — el usuario no es `ADMIN`.
 
 > Cada publicación queda guardada como un registro nuevo (no se pisa el historial) — `GET /app/version` siempre trae la más reciente. Si publicás dos veces la misma versión, el archivo en disco se sobreescribe.
 
@@ -78,6 +81,6 @@ Los APKs se guardan en disco, en la carpeta configurada por `APK_STORAGE_PATH` (
 
 ---
 
-## ⚠️ Seguridad — pendiente
+## Seguridad
 
-Hoy `POST /app/version` está **sin protección**, igual que el resto de los endpoints de la API (todo es `permitAll()` mientras no se active el control de roles). A diferencia de otros endpoints abiertos, este permite **subir archivos** — cualquiera en la red podría publicar un APK falso o llenar el disco del servidor. Cuando se aborde la protección de endpoints por rol, este debería ser de los primeros en quedar restringido a `ADMIN`.
+`POST /app/version` pide token de un usuario **`ADMIN`** (spec 003). `GET /app/version` y `GET /app/download/{fileName}` siguen públicos porque la app busca actualizaciones antes de loguearse. Ver [AUTH.md](./AUTH.md#vencimiento-y-sesión).

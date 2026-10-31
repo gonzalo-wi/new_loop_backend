@@ -79,6 +79,26 @@ En todas las llamadas siguientes incluir el token en el header:
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
+### Vencimiento y sesión
+
+- El token **vence a la medianoche siguiente, hora de Argentina** (claim `exp`). Todos se vuelven a loguear al empezar el día. Si alguien entra a las 23:50, el token le dura 10 minutos.
+- **Todos los endpoints piden token**, salvo: `POST /auth/login`, `GET /health`, `GET /app/version` y `GET /app/download/{file}` (la app busca actualizaciones antes de loguearse).
+- Sin token, o con uno vencido, inválido o de un usuario desactivado → **`401 Unauthorized`**. El panel y la app cierran la sesión y vuelven al login.
+- Logueado pero sin el rol necesario → **`403 Forbidden`**. Ejemplo: `POST /app/version` (subir un APK) es solo para `ADMIN`.
+- En los endpoints públicos un token vencido no molesta: se ignora (un token viejo guardado en el teléfono no bloquea el login).
+- La API es **stateless**: no crea sesiones HTTP ni cookies (`JSESSIONID`), solo usa el token.
+- Swagger UI (`/swagger-ui.html`, `/v3/api-docs`) también pide token, así que desde el navegador responde 401.
+
+```json
+{
+  "timestamp": "2026-10-30T10:30:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "message": "Authentication required: the session is missing, invalid or expired",
+  "path": "/users"
+}
+```
+
 ---
 
 ### Errores

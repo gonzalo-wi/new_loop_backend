@@ -27,7 +27,7 @@ public class AppVersionController {
         return ResponseEntity.ok(appVersionService.getLatestVersion(currentBaseUrl()));
     }
 
-    // Publishes a new APK release. Not role-gated yet (same posture as the rest of the API today).
+    // Publishes a new APK release. Admin only (enforced in SecurityConfig).
     @PostMapping(value = "/version", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AppVersionResponse> publishVersion(
             @RequestParam String version,
