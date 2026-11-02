@@ -23,6 +23,8 @@ services:
       POWERFLEET_BASE_URL: ${POWERFLEET_BASE_URL:-https://www.monitoreodeflotas.com.ar/Fleetcore.Api}
       POWERFLEET_USERNAME: ${POWERFLEET_USERNAME}
       POWERFLEET_PASSWORD: ${POWERFLEET_PASSWORD}
+      PAC_INTEGRATION_USERNAME: ${PAC_INTEGRATION_USERNAME:-}
+      PAC_INTEGRATION_PASSWORD: ${PAC_INTEGRATION_PASSWORD:-}
       APK_STORAGE_PATH: /app/apk-storage
       # Credenciales dedicadas para que Prometheus scrapee /actuator/** vía HTTP Basic.
       ACTUATOR_USERNAME: ${ACTUATOR_USERNAME:-prometheus}

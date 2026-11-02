@@ -358,6 +358,44 @@ Obtiene un control por ID con el detalle completo de sus items.
 
 ---
 
+### GET /integrations/pac/arrivals
+
+Rutas que ya volvieron (control de entrada no cancelado) para una fecha, con la hora de llegada. Es de solo lectura y lo consume el backend de PAC. **No usa JWT**: pide HTTP Basic con las credenciales de la integración (`PAC_INTEGRATION_USERNAME` / `PAC_INTEGRATION_PASSWORD`). Detalle completo en `docs/PAC_ARRIVALS.md`.
+
+**Query params:**
+
+| Param  | Tipo | Descripción |
+|--------|------|-------------|
+| `date` | `YYYY-MM-DD` (opcional) | Fecha de control. Por defecto, hoy en hora de Argentina |
+
+**Respuesta 200:**
+
+```json
+{
+  "data": [
+    {
+      "routeNumber": 179,
+      "routeCode": "Rto 179",
+      "branchId": "3f2b8c1e-5a47-4d0e-9a53-0d6f1c2b7a10",
+      "branchName": "Mar del Plata",
+      "arrivedAt": "2026-11-02T15:20:00-03:00"
+    }
+  ],
+  "message": "Arrivals retrieved successfully"
+}
+```
+
+Ordenado por hora de llegada. Sin llegadas: `data: []`. Se omiten los controles cancelados y las rutas sin dígitos en el código; los números repetidos no se unifican.
+
+**Errores:**
+
+| Status | Situación | `message` |
+|--------|-----------|-----------|
+| 400    | `date` mal formada | `"Invalid value for parameter 'date'"` |
+| 401    | Sin credenciales, incorrectas, un JWT de usuario o la integración deshabilitada | `"Invalid integration credentials"` |
+
+---
+
 ## Referencia de campos
 
 ### StockControlResponse
@@ -408,6 +446,7 @@ Obtiene un control por ID con el detalle completo de sus items.
 | PATCH  | `/stock-controls/{id}`         | Modificar control (antes de que el repartidor lo acepte; si estaba rechazado, lo reenvía) |
 | POST   | `/stock-controls/{id}/approve` | El repartidor acepta → ACCEPTED_BY_DRIVER y se envía a Aguas |
 | POST   | `/stock-controls/{id}/reject`  | El repartidor rechaza con motivo → REJECTED_BY_DRIVER |
+| GET    | `/integrations/pac/arrivals`   | Rutas que ya volvieron en una fecha, para PAC (HTTP Basic de la integración, sin JWT) |
 
 ---
 
