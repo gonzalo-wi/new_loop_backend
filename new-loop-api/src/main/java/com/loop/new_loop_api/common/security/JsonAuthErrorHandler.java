@@ -38,6 +38,11 @@ public class JsonAuthErrorHandler implements AuthenticationEntryPoint, AccessDen
         write(response, request, HttpStatus.UNAUTHORIZED, NOT_LOGGED_IN);
     }
 
+    /** Same 401 body with another message, for chains that authenticate something other than a user session. */
+    public AuthenticationEntryPoint withMessage(String message) {
+        return (request, response, ex) -> write(response, request, HttpStatus.UNAUTHORIZED, message);
+    }
+
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException ex)
             throws IOException {

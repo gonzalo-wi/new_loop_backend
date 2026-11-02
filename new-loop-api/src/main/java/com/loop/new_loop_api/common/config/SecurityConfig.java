@@ -2,13 +2,17 @@ package com.loop.new_loop_api.common.config;
 
 import com.loop.new_loop_api.common.security.JsonAuthErrorHandler;
 import com.loop.new_loop_api.common.security.JwtAuthenticationFilter;
+import com.loop.new_loop_api.integrations.pac.security.PacIntegrationAuthenticationProvider;
+import com.loop.new_loop_api.integrations.pac.security.PacIntegrationCredentials;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,10 +26,14 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
+    private static final String PAC_INTEGRATION_MATCHER       = "/integrations/pac/**";
+    private static final String PAC_INVALID_CREDENTIALS_MESSAGE = "Invalid integration credentials";
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JsonAuthErrorHandler    jsonAuthErrorHandler;
@@ -35,6 +43,13 @@ public class SecurityConfig {
 
     @Value("${management.security.password}")
     private String actuatorPassword;
+
+    // Empty on purpose when unset: no fallback password, the endpoint is simply disabled.
+    @Value("${integrations.pac.username:}")
+    private String pacUsername;
+
+    @Value("${integrations.pac.password:}")
+    private String pacPassword;
 
     /**
      * Dedicated chain for /actuator/** with its own local DaoAuthenticationProvider, so the
@@ -67,8 +82,33 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Dedicated chain for PAC's backend: HTTP Basic with the integration credentials only. Its ProviderManager has
+     * no parent, otherwise a rejected PAC login would fall back to the global manager and a LOOP user's
+     * username/password would pass. No JWT filter here, so a user token stays anonymous and gets 401.
+     */
     @Bean
     @Order(2)
+    public SecurityFilterChain pacIntegrationSecurityFilterChain(HttpSecurity http) throws Exception {
+        var credentials = new PacIntegrationCredentials(pacUsername, pacPassword);
+        if (!credentials.isConfigured()) {
+            log.warn("PAC integration disabled: credentials not set (integrations.pac.username / password)");
+        }
+        var entryPoint = jsonAuthErrorHandler.withMessage(PAC_INVALID_CREDENTIALS_MESSAGE);
+
+        http
+                .securityMatcher(PAC_INTEGRATION_MATCHER)
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authenticationManager(new ProviderManager(new PacIntegrationAuthenticationProvider(credentials)))
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .httpBasic(basic -> basic.authenticationEntryPoint(entryPoint))
+                .exceptionHandling(handling -> handling.authenticationEntryPoint(entryPoint));
+        return http.build();
+    }
+
+    @Bean
+    @Order(3)
     public SecurityFilterChain appSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
