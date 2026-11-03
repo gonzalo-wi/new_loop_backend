@@ -49,6 +49,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Salida de dispensers a Odoo: si al despachar algunos equipos no están disponibles en expedición, ahora se despachan igual los que sí lo están (antes Odoo rechazaba el lote completo y no salía ninguno). Los equipos no disponibles quedan registrados en el detalle del error. Si ninguno está disponible, el despacho se cierra como error definitivo y deja de reintentarse.
 
 ### Fixed
+- Seguridad: las métricas (`/actuator/prometheus` y `/actuator/metrics`) aceptaban por HTTP Basic el usuario y la contraseña de cualquier usuario de Loop, no solo las credenciales de monitoreo (`ACTUATOR_USERNAME` / `ACTUATOR_PASSWORD`). Ahora solo sirven las de monitoreo; `/actuator/health` sigue público.
 - Ubicación del camión (Powerfleet): si Powerfleet invalida el token antes de tiempo, el backend pide uno nuevo y reintenta en vez de fallar hasta que venza. Cada error queda en el log con la patente y el motivo real (por ejemplo, usuario o clave inválidos), y un login rechazado incluye el mensaje de Powerfleet.
 - Cancelar o corregir un movimiento de dispenser registrado sin usuario de sesión fallaba con 409: Aguas rechazaba el borrado por falta de usuario. Ahora el borrado manda el técnico como usuario, igual que el alta.
 - Un parámetro de consulta con un valor inválido (por ejemplo un tipo, estado u origen inexistente, o un id mal formado) ahora responde 400 indicando el parámetro, en lugar de un error 500.
