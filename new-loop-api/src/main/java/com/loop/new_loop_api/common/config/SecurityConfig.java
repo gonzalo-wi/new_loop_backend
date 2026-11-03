@@ -70,7 +70,9 @@ public class SecurityConfig {
         http
                 .securityMatcher("/actuator/**")
                 .csrf(AbstractHttpConfigurer::disable)
-                .authenticationProvider(actuatorAuthProvider)
+                // Parentless manager: otherwise a rejected login falls back to the global manager and a
+                // LOOP user's username/password would unlock the metrics.
+                .authenticationManager(new ProviderManager(actuatorAuthProvider))
                 .authorizeHttpRequests(auth -> auth
                         // /actuator/health stays public for infra/Docker healthchecks.
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
