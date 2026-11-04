@@ -35,12 +35,15 @@ import com.loop.new_loop_api.stockcontrols.exception.DuplicateControlException;
 import com.loop.new_loop_api.stockcontrols.exception.ExitControlNotFoundException;
 import com.loop.new_loop_api.stockcontrols.exception.InactiveProductException;
 import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
+import com.loop.new_loop_api.stockcontrols.exception.RemitoBatchNotAvailableException;
 import com.loop.new_loop_api.stockcontrols.exception.RemitoNotAvailableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotCorrectableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotFoundException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotModifiableException;
 import com.loop.new_loop_api.stockcontrols.mapper.StockControlMapper;
 import com.loop.new_loop_api.stockcontrols.pdf.RemitoPdfGenerator;
+import com.loop.new_loop_api.stockcontrols.pdf.RemitoPdfGenerator.RemitoPage;
+import com.loop.new_loop_api.holidays.service.iService.HolidayService;
 import com.loop.new_loop_api.stockcontrols.repository.StockControlRepository;
 import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
 import lombok.RequiredArgsConstructor;
@@ -56,9 +59,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.loop.new_loop_api.stockcontrols.repository.StockControlSpecification.withFilters;
 
@@ -94,6 +99,7 @@ public class StockControlServiceImpl implements StockControlService {
     private final CurrentUserProvider       currentUserProvider;
     private final AguasControlMetrics       aguasControlMetrics;
     private final OperationEventRecorder    operationEventRecorder;
+    private final HolidayService            holidayService;
 
     
     @Override
@@ -265,18 +271,73 @@ public class StockControlServiceImpl implements StockControlService {
         return stockControlMapper.toResponse(stockControlRepository.save(control));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] generateRemitosPdf(List<UUID> ids) {
+        var controls = findRemitoBatch(ids);
+        var holidays = holidayService.holidaysAmong(controls.stream().map(StockControl::getControlDate).distinct().toList());
+        return remitoPdfGenerator.generate(controls.stream()
+                .map(control -> new RemitoPage(control, holidays.contains(control.getControlDate())))
+                .toList());
+    }
+
+    @Override
+    @Transactional
+    public List<StockControlResponse> markRemitosPrinted(List<UUID> ids) {
+        var controls = findRemitoBatch(ids);
+        controls.forEach(control -> control.setRemitoPrinted(true));
+        return stockControlRepository.saveAll(controls).stream().map(stockControlMapper::toResponse).toList();
+    }
+
+    /** The batch in the requested order; one missing or unavailable remito fails the whole batch. */
+    private List<StockControl> findRemitoBatch(List<UUID> ids) {
+        var uniqueIds = new LinkedHashSet<>(ids);
+        var byId = stockControlRepository.findAllById(uniqueIds).stream()
+                .collect(Collectors.toMap(StockControl::getId, control -> control));
+        var failures = new ArrayList<String>();
+        var controls = new ArrayList<StockControl>();
+        for (var id : uniqueIds) {
+            var control = byId.get(id);
+            if (control == null) {
+                failures.add("control " + id + ": not found");
+                continue;
+            }
+            var reason = remitoUnavailableReason(control);
+            if (reason != null) {
+                failures.add("route " + control.getRoute().getCode() + ": " + reason);
+                continue;
+            }
+            controls.add(control);
+        }
+        if (!failures.isEmpty()) {
+            throw new RemitoBatchNotAvailableException(failures);
+        }
+        return controls;
+    }
+
+    // The holiday is looked up at render time, so a holiday added late also changes reprints (spec 005, FR-7).
     private byte[] buildRemito(StockControl control) {
         assertRemitoAvailable(control);
-        return remitoPdfGenerator.generate(control);
+        var date = control.getControlDate();
+        var holiday = holidayService.holidaysAmong(List.of(date)).contains(date);
+        return remitoPdfGenerator.generate(control, holiday);
     }
 
     private void assertRemitoAvailable(StockControl control) {
+        var reason = remitoUnavailableReason(control);
+        if (reason != null) {
+            throw new RemitoNotAvailableException(control.getId(), reason);
+        }
+    }
+
+    private String remitoUnavailableReason(StockControl control) {
         if (control.getType() != ControlType.EXIT) {
-            throw new RemitoNotAvailableException(control.getId(), "remitos are only generated for EXIT controls");
+            return "remitos are only generated for EXIT controls";
         }
         if (control.getAguasFormulario() == null || control.getAguasNroRemito() == null) {
-            throw new RemitoNotAvailableException(control.getId(), "the control has not been confirmed with Aguas yet");
+            return "the control has not been confirmed with Aguas yet";
         }
+        return null;
     }
 
     /** A corrected rejection goes back to the driver's pending list; the reason lives on in the audit log. */

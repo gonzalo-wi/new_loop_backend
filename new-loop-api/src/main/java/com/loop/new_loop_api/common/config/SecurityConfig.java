@@ -125,6 +125,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/health", "/app/version", "/app/download/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/app/version").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/holidays").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/holidays/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(handling -> handling

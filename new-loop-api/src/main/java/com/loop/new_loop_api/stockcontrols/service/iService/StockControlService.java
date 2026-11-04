@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public interface StockControlService {
@@ -27,4 +28,7 @@ public interface StockControlService {
     byte[] generateRemitoPdf(UUID id);
     StockControlResponse markRemitoPrinted(UUID id);
     byte[] generateRemitoPdfByRouteAndDate(UUID routeId, LocalDate date);
+    /** Every remito in one PDF, one per page, in the given order. */
+    byte[] generateRemitosPdf(List<UUID> ids);
+    List<StockControlResponse> markRemitosPrinted(List<UUID> ids);
 }

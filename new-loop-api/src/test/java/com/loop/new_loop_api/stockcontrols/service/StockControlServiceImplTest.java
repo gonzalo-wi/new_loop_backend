@@ -26,12 +26,14 @@ import com.loop.new_loop_api.stockcontrols.exception.ControlEditNotAllowedExcept
 import com.loop.new_loop_api.stockcontrols.exception.DuplicateControlException;
 import com.loop.new_loop_api.stockcontrols.exception.CorrectionNotAllowedException;
 import com.loop.new_loop_api.stockcontrols.exception.InvalidControlStatusException;
+import com.loop.new_loop_api.stockcontrols.exception.RemitoBatchNotAvailableException;
 import com.loop.new_loop_api.stockcontrols.exception.RemitoNotAvailableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotCorrectableException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotFoundException;
 import com.loop.new_loop_api.stockcontrols.exception.StockControlNotModifiableException;
 import com.loop.new_loop_api.stockcontrols.mapper.StockControlMapper;
 import com.loop.new_loop_api.stockcontrols.pdf.RemitoPdfGenerator;
+import com.loop.new_loop_api.holidays.service.iService.HolidayService;
 import com.loop.new_loop_api.stockcontrols.repository.StockControlRepository;
 import com.loop.new_loop_api.stockcontrols.repository.StockControlSpecification;
 import com.loop.new_loop_api.users.entity.Role;
@@ -78,6 +80,7 @@ class StockControlServiceImplTest {
     @Mock private CurrentUserProvider    currentUserProvider;
     @Mock private AguasControlMetrics    aguasControlMetrics;
     @Mock private OperationEventRecorder operationEventRecorder;
+    @Mock private HolidayService         holidayService;
 
     private StockControlServiceImpl stockControlService;
 
@@ -89,7 +92,7 @@ class StockControlServiceImplTest {
         stockControlService = new StockControlServiceImpl(
                 stockControlRepository, stockControlMapper, branchRepository, routeRepository,
                 productRepository, auditService, eventPublisher, remitoPdfGenerator, currentUserProvider,
-                aguasControlMetrics, operationEventRecorder);
+                aguasControlMetrics, operationEventRecorder, holidayService);
 
         controlId = UUID.randomUUID();
         control = entryControl(ControlStatus.SENT_TO_AGUAS);
@@ -574,6 +577,110 @@ class StockControlServiceImplTest {
 
         assertThatThrownBy(() -> stockControlService.markRemitoPrinted(controlId))
                 .isInstanceOf(StockControlNotFoundException.class);
+    }
+
+    // 10. Holiday remito (spec 005): the calendar is read when the remito is rendered
+    @Test
+    void should_renderHolidayRemito_when_controlDateIsAHoliday() {
+        var exit = exitControlWithRemito();
+        var date = exit.getControlDate();
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(exit));
+        when(holidayService.holidaysAmong(List.of(date))).thenReturn(java.util.Set.of(date));
+
+        stockControlService.generateRemitoPdf(controlId);
+
+        verify(remitoPdfGenerator).generate(exit, true);
+    }
+
+    @Test
+    void should_renderNormalRemito_when_controlDateIsNotAHoliday() {
+        var exit = exitControlWithRemito();
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(exit));
+        when(holidayService.holidaysAmong(any())).thenReturn(java.util.Set.of());
+
+        stockControlService.generateRemitoPdf(controlId);
+
+        verify(remitoPdfGenerator).generate(exit, false);
+    }
+
+    @Test
+    void should_lookUpTheHolidayForTheDriverRemitoToo() {
+        var exit = exitControlWithRemito();
+        var date = exit.getControlDate();
+        var routeId = exit.getRoute().getId();
+        when(stockControlRepository.findByTypeAndRouteIdAndControlDateAndStatusNot(
+                ControlType.EXIT, routeId, date, ControlStatus.CANCELLED)).thenReturn(Optional.of(exit));
+        when(holidayService.holidaysAmong(List.of(date))).thenReturn(java.util.Set.of(date));
+
+        stockControlService.generateRemitoPdfByRouteAndDate(routeId, date);
+
+        verify(remitoPdfGenerator).generate(exit, true);
+    }
+
+    // 11. Batch printing (spec 005)
+    @Test
+    void should_renderBatchInRequestOrder_withEachRemitoOwnLayout() {
+        var first  = exitWithRemito("11", java.time.LocalDate.of(2026, 11, 23));
+        var second = exitWithRemito("22", java.time.LocalDate.of(2026, 11, 24));
+        when(stockControlRepository.findAllById(any())).thenReturn(List.of(second, first));
+        when(holidayService.holidaysAmong(any())).thenReturn(java.util.Set.of(java.time.LocalDate.of(2026, 11, 23)));
+
+        stockControlService.generateRemitosPdf(List.of(first.getId(), second.getId()));
+
+        verify(remitoPdfGenerator).generate(List.of(
+                new RemitoPdfGenerator.RemitoPage(first, true),
+                new RemitoPdfGenerator.RemitoPage(second, false)));
+    }
+
+    @Test
+    void should_failWholeBatch_listingEveryUnavailableRoute() {
+        var ok      = exitWithRemito("11", java.time.LocalDate.now());
+        var pending = exitWithRemito("22", java.time.LocalDate.now());
+        pending.setAguasNroRemito(null);
+        var missing = UUID.randomUUID();
+        when(stockControlRepository.findAllById(any())).thenReturn(List.of(ok, pending));
+
+        assertThatThrownBy(() -> stockControlService.generateRemitosPdf(List.of(ok.getId(), pending.getId(), missing)))
+                .isInstanceOf(RemitoBatchNotAvailableException.class)
+                .hasMessageContaining("route 22: the control has not been confirmed with Aguas yet")
+                .hasMessageContaining("control " + missing + ": not found")
+                .hasMessageNotContaining("route 11");
+        verifyNoInteractions(remitoPdfGenerator);
+    }
+
+    @Test
+    void should_markEveryRemitoOfTheBatchPrinted() {
+        var first  = exitWithRemito("11", java.time.LocalDate.now());
+        var second = exitWithRemito("22", java.time.LocalDate.now());
+        when(stockControlRepository.findAllById(any())).thenReturn(List.of(first, second));
+        when(stockControlRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        stockControlService.markRemitosPrinted(List.of(first.getId(), second.getId()));
+
+        assertThat(first.getRemitoPrinted()).isTrue();
+        assertThat(second.getRemitoPrinted()).isTrue();
+    }
+
+    @Test
+    void should_markNothingPrinted_when_anyRemitoOfTheBatchIsUnavailable() {
+        var ok    = exitWithRemito("11", java.time.LocalDate.now());
+        var entry = exitWithRemito("22", java.time.LocalDate.now());
+        entry.setType(ControlType.ENTRY);
+        when(stockControlRepository.findAllById(any())).thenReturn(List.of(ok, entry));
+
+        assertThatThrownBy(() -> stockControlService.markRemitosPrinted(List.of(ok.getId(), entry.getId())))
+                .isInstanceOf(RemitoBatchNotAvailableException.class);
+
+        assertThat(ok.getRemitoPrinted()).isNotEqualTo(true);
+        verify(stockControlRepository, never()).saveAll(any());
+    }
+
+    private StockControl exitWithRemito(String routeCode, java.time.LocalDate date) {
+        var exit = exitControlWithRemito();
+        exit.setId(UUID.randomUUID());
+        exit.setRoute(Route.builder().id(UUID.randomUUID()).code(routeCode).build());
+        exit.setControlDate(date);
+        return exit;
     }
 
     private StockControl exitControlWithRemito() {

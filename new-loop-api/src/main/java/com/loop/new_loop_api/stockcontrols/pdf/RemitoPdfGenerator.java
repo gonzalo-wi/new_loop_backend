@@ -45,38 +45,67 @@ public class RemitoPdfGenerator {
     private static final Font SIGNATURE_FONT    = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.DARK_GRAY);
     private static final Font FOOTER_FONT       = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 6, Color.GRAY);
 
+    /** One remito of a batch; holiday remitos go out without any company data. */
+    public record RemitoPage(StockControl control, boolean holiday) {
+    }
+
+    public byte[] generate(StockControl control, boolean holiday) {
+        return generate(List.of(new RemitoPage(control, holiday)));
+    }
+
     /** Drivers print the remito on A5, so the layout is sized for it: a typical load must fit on one sheet. */
-    public byte[] generate(StockControl control) {
+    public byte[] generate(List<RemitoPage> pages) {
+        if (pages.isEmpty()) {
+            throw new IllegalArgumentException("At least one remito is required");
+        }
         var document = new Document(PageSize.A5, 24, 24, 24, 20);
         var output   = new ByteArrayOutputStream();
         try {
             PdfWriter.getInstance(document, output);
             document.open();
-
-            var branch = control.getBranch();
-            document.add(companyHeader(branch));
-            document.add(spacer(4));
-            document.add(legalInfoTable(branch));
-            document.add(spacer(6));
-            document.add(remitoBadge(control));
-            document.add(spacer(8));
-            document.add(sectionTitle("Datos del control"));
-            document.add(spacer(3));
-            document.add(infoTable(control));
-            document.add(spacer(8));
-            document.add(sectionTitle("Productos cargados"));
-            document.add(spacer(3));
-            document.add(itemsTable(control));
-            document.add(spacer(10));
-            document.add(signatureSection());
-            document.add(spacer(6));
-            document.add(footer());
-
+            for (int i = 0; i < pages.size(); i++) {
+                // Each remito goes to its own driver, so it never shares a sheet with the previous one.
+                if (i > 0) document.newPage();
+                addRemito(document, pages.get(i));
+            }
             document.close();
         } catch (DocumentException e) {
             throw new IllegalStateException("Could not generate remito PDF", e);
         }
         return output.toByteArray();
+    }
+
+    private void addRemito(Document document, RemitoPage page) throws DocumentException {
+        var control = page.control();
+        if (page.holiday()) {
+            document.add(holidayHeader());
+        } else {
+            var branch = control.getBranch();
+            document.add(companyHeader(branch));
+            document.add(spacer(4));
+            document.add(legalInfoTable(branch));
+        }
+        document.add(spacer(6));
+        document.add(remitoBadge(control));
+        document.add(spacer(8));
+        document.add(sectionTitle("Datos del control"));
+        document.add(spacer(3));
+        document.add(infoTable(control));
+        document.add(spacer(8));
+        document.add(sectionTitle("Productos cargados"));
+        document.add(spacer(3));
+        document.add(itemsTable(control));
+        document.add(spacer(10));
+        document.add(signatureSection());
+        document.add(spacer(6));
+        document.add(footer());
+    }
+
+    /** On holidays the load is not billed under the company, so the remito carries no company or fiscal data. */
+    private Paragraph holidayHeader() {
+        var title = new Paragraph("REMITO", TITLE_FONT);
+        title.setAlignment(Element.ALIGN_RIGHT);
+        return title;
     }
 
     /** Left: legal entity that owns the plant (varies per branch). Right: document title and fiscal disclaimer. */
@@ -242,7 +271,8 @@ public class RemitoPdfGenerator {
             var background = stripe ? STRIPE_COLOR : Color.WHITE;
             addCell(table, item.getProduct().getCode(), Element.ALIGN_LEFT, background);
             addCell(table, item.getProduct().getName(), Element.ALIGN_LEFT, background);
-            addCell(table, String.valueOf(item.getTotalQuantity()), Element.ALIGN_RIGHT, background);
+            var quantity = RemitoQuantity.format(item.getTotalQuantity(), item.getProduct().getPackQuantity());
+            addCell(table, quantity, Element.ALIGN_RIGHT, background);
             stripe = !stripe;
         }
         return table;

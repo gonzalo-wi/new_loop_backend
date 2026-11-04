@@ -5,6 +5,7 @@ import com.loop.new_loop_api.stockcontrols.dto.ArrivalsSummaryResponse;
 import com.loop.new_loop_api.stockcontrols.dto.CorrectStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.CreateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.dto.RejectStockControlRequest;
+import com.loop.new_loop_api.stockcontrols.dto.RemitoBatchRequest;
 import com.loop.new_loop_api.stockcontrols.dto.StockControlResponse;
 import com.loop.new_loop_api.stockcontrols.dto.UpdateStockControlRequest;
 import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
@@ -24,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -97,6 +99,19 @@ public class StockControlController {
     @PostMapping("/{id}/remito/printed")
     public ResponseEntity<ApiResponse<StockControlResponse>> markRemitoPrinted(@PathVariable UUID id) {
         var response = stockControlService.markRemitoPrinted(id);
+        return ResponseEntity.ok(ApiResponse.ok(response, UPDATED_MESSAGE));
+    }
+
+    @PostMapping("/remitos")
+    public ResponseEntity<byte[]> getRemitosBatch(@Valid @RequestBody RemitoBatchRequest request) {
+        var pdf = stockControlService.generateRemitosPdf(request.ids());
+        return remitoResponse(pdf, "remitos.pdf");
+    }
+
+    @PostMapping("/remitos/printed")
+    public ResponseEntity<ApiResponse<List<StockControlResponse>>> markRemitosPrinted(
+            @Valid @RequestBody RemitoBatchRequest request) {
+        var response = stockControlService.markRemitosPrinted(request.ids());
         return ResponseEntity.ok(ApiResponse.ok(response, UPDATED_MESSAGE));
     }
 
