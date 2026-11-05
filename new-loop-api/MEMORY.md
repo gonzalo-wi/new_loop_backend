@@ -94,3 +94,13 @@
 - "Routes per day" counts routes that came back (ENTRY controls), per the user's choice.
 - The stay average leaves out exits made the next morning; they are shown as "morning exits".
 - Arrival time is the ENTRY control's creation time, not the gate (GPS) time; the user accepted it.
+
+## Spec 007 — Driver settlement (2026-11-05)
+- Spec approved; plan and tasks approved in advance ("prepare and develop everything tonight"). Counterpart: PAC
+  spec 015, whose contract.md fixes the JSON both sides use.
+- LOOP asks PAC on demand (`GET /settlements/me` → PAC `/api/integrations/loop/settlement`). It reuses the arrivals
+  credentials both ways (user decision: no new secret). `PAC_BASE_URL` defaults to `http://localhost:8097`
+  (same host, host network). Answers are cached 60 s; failures are not cached.
+- PAC is only asked after the route's ENTRY control: Aguas' expected changes while the route is open (user).
+- App: "Rendición" tab, drivers only; the badge comes from a 5-minute foreground check. Push is phase 2 (it needs
+  Firebase and a new library).

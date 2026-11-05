@@ -8,6 +8,8 @@ import com.loop.new_loop_api.common.config.SecurityConfig;
 import com.loop.new_loop_api.common.controller.HealthController;
 import com.loop.new_loop_api.common.metrics.ErrorMetrics;
 import com.loop.new_loop_api.holidays.controller.HolidayController;
+import com.loop.new_loop_api.settlements.controller.SettlementController;
+import com.loop.new_loop_api.settlements.service.iService.DriverSettlementService;
 import com.loop.new_loop_api.stockcontrols.controller.StockControlController;
 import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
 import com.loop.new_loop_api.holidays.service.iService.HolidayService;
@@ -45,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** The real app filter chain against a few real controllers whose services are mocked. */
 @WebMvcTest(controllers = {UserController.class, AppVersionController.class, AuthController.class, HealthController.class,
-        HolidayController.class, StockControlController.class})
+        HolidayController.class, StockControlController.class, SettlementController.class})
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JsonAuthErrorHandler.class, JwtService.class, SecurityConfigTest.SystemClock.class})
 @TestPropertySource(properties = {
         "app.jwt.secret=" + SecurityConfigTest.SECRET,
@@ -74,6 +76,7 @@ class SecurityConfigTest {
     @MockitoBean private ErrorMetrics           errorMetrics;
     @MockitoBean private HolidayService         holidayService;
     @MockitoBean private StockControlService    stockControlService;
+    @MockitoBean private DriverSettlementService driverSettlementService;
 
     private String tokenFor(String username, Role role) {
         when(authenticatedUserCache.findActive(username))
@@ -159,6 +162,23 @@ class SecurityConfigTest {
     void shouldLetAnAdminUploadAnApk() throws Exception {
         mockMvc.perform(apkUpload().header("Authorization", "Bearer " + tokenFor("boss", Role.ADMIN)))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void shouldLetADriverReadTheirSettlement() throws Exception {
+        mockMvc.perform(get("/settlements/me").header("Authorization", "Bearer " + tokenFor("chofer", Role.REPARTIDOR)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldAnswer403_when_aNonDriverReadsASettlement() throws Exception {
+        mockMvc.perform(get("/settlements/me").header("Authorization", "Bearer " + tokenFor("sup", Role.SUPERVISOR)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldAnswer401_when_theSettlementIsReadWithoutAToken() throws Exception {
+        mockMvc.perform(get("/settlements/me")).andExpect(status().isUnauthorized());
     }
 
     @Test

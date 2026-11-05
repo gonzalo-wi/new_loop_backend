@@ -156,6 +156,44 @@ El motivo es obligatorio (máx. 500 caracteres). Transiciona el control de `PEND
 
 ---
 
+## 5. Mi rendición (spec 007)
+
+Lo que Aguas espera que el repartidor rinda y lo que depositó, leído de PAC (tesorería).
+
+```
+GET /settlements/me
+Authorization: Bearer <token>   (solo REPARTIDOR; otro rol: 403)
+```
+
+Devuelve los repartos activos asignados al repartidor, para hoy (hora Argentina). Cada uno tiene un `state`:
+
+| `state`           | Qué significa                                                                 |
+|-------------------|-------------------------------------------------------------------------------|
+| `WAITING_ENTRY`   | Todavía no tiene control de entrada hoy. No se consulta a PAC: lo esperado cambia mientras el reparto está abierto |
+| `NO_ROUTE_NUMBER` | El código del reparto no tiene números, así que no se puede buscar en PAC     |
+| `NOT_LOADED`      | PAC todavía no tiene el reparto de hoy                                        |
+| `UNAVAILABLE`     | PAC no está configurado, no responde (más de 5 s) o respondió un error        |
+| `AVAILABLE`       | `figures` trae los números de PAC                                             |
+
+`figures`: `expectedCash`, `expectedChecks`, `expectedWithholdings`, `expectedTotal`, `depositedCash`,
+`confirmedChecks`, `confirmedWithholdings`, `totalReceived`, `difference` y `differenceType` (`SURPLUS`, `SHORTAGE`
+o `NONE`; los dos son `null` hasta que tesorería procesa el reparto), `statusGroup` (`PENDING`, `READY`, `CLOSED`,
+`NO_DEPOSIT`), `expectedUpdatedAt`, `lastDepositAt`, `cashDifference` (en vivo: efectivo depositado menos efectivo
+esperado, `null` sin depósito), `depositsCheckedAt` (cuándo PAC leyó los depósitos de PIMS) y `depositsLive` (`false`
+si PIMS no respondió y se muestra lo último leído).
+
+- La respuesta de PAC se guarda 10 segundos por reparto y día, para que un depósito se vea enseguida; los errores no
+  se guardan. PAC lee PIMS en el momento (como máximo una vez cada 20 s por cajero).
+- Todas las consultas a PAC de un pedido arrancan juntas y comparten un límite de 5 segundos: con varios repartos
+  el pedido tarda lo mismo que con uno.
+- **Orden de deploy:** primero PAC, después LOOP. Un PAC sin el endpoint contesta 404 y los repartos se verían como
+  "todavía no cargado" en vez de "no responde".
+- LOOP llama a `PAC_BASE_URL` (por defecto `http://localhost:8097`) con las mismas credenciales de integración de las
+  llegadas (`PAC_INTEGRATION_USERNAME` / `PAC_INTEGRATION_PASSWORD`). Contrato: PAC
+  `specs/015-loop-driver-settlement/contract.md`.
+
+---
+
 ## Resumen de endpoints
 
 | Método | Endpoint                          | Descripción                              |
