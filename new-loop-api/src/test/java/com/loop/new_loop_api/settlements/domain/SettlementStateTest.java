@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SettlementStateTest {
 
     private static final SettlementFigures FIGURES =
-            new SettlementFigures(null, null, null, null, null, null, null, null, null, null, "PENDING", null, null);
+            new SettlementFigures(null, null, null, null, null, null, null, null, null, null, "PENDING", null, null, null, null, false);
 
     @Test
     void shouldWaitForTheEntryControlBeforeAnythingElse() {

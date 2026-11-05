@@ -60,7 +60,7 @@ class DriverSettlementServiceImplTest {
         var route = route("Rto 179");
         when(routeRepository.findByDriverIdAndActiveTrueOrderByCodeAsc(driverId)).thenReturn(List.of(route));
         cameBack(route, true);
-        var figures = new SettlementFigures(null, null, null, null, null, null, null, null, null, null, "PENDING", null, null);
+        var figures = new SettlementFigures(null, null, null, null, null, null, null, null, null, null, "PENDING", null, null, null, null, false);
         when(gateway.lookup(179L, TODAY)).thenReturn(new PacLookup.Found(figures));
 
         var result = service.getMySettlement();

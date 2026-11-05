@@ -30,7 +30,10 @@ class PacSettlementResponseContractTest {
               "differenceType": null,
               "statusGroup": "PENDING",
               "expectedUpdatedAt": "2026-11-05T13:10:00-03:00",
-              "lastDepositAt": "2026-11-05T15:42:00-03:00"
+              "lastDepositAt": "2026-11-05T15:42:00-03:00",
+              "cashDifference": 1500.00,
+              "depositsCheckedAt": "2026-11-05T15:43:10-03:00",
+              "depositsLive": true
             }
             """;
 
@@ -47,6 +50,8 @@ class PacSettlementResponseContractTest {
         assertThat(response.difference()).isNull();
         assertThat(response.differenceType()).isNull();
         assertThat(response.statusGroup()).isEqualTo("PENDING");
+        assertThat(response.cashDifference()).isEqualByComparingTo("1500.00");
+        assertThat(response.depositsLive()).isTrue();
         // Same instant as PAC's -03:00 time, whatever offset Jackson normalizes it to.
         assertThat(response.lastDepositAt().toInstant())
                 .isEqualTo(OffsetDateTime.parse("2026-11-05T15:42:00-03:00").toInstant());

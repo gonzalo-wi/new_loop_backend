@@ -36,14 +36,16 @@ Counterpart: PAC spec 015 (`specs/015-loop-driver-settlement`). Push notificatio
   "waiting for the entry control" without calling PAC.
 - FR-3: WHEN the settlement is available, THE SYSTEM SHALL return PAC's figures for that route number and
   day: expected cash, checks, withholdings and total; deposited cash; confirmed checks and withholdings;
-  total received; final difference and its type; status group; and the update times.
+  total received; final difference and its type; status group; the update times; the live cash difference
+  (deposited cash minus expected cash); when the deposits were read from PIMS; and whether that read is live.
 - FR-4: IF PAC answers that it has no settlement for the route yet, THEN THE SYSTEM SHALL return the route
   as "not loaded in treasury yet".
 - FR-5: IF PAC is not configured, unreachable, slow (over 5 seconds) or answers an error, THEN THE SYSTEM
   SHALL return the route as "treasury unavailable", log the cause, and still answer the request.
 - FR-6: IF the route code has no digits, THEN THE SYSTEM SHALL return the route as "no route number".
-- FR-7: THE SYSTEM SHALL keep each PAC answer for 60 seconds per route and day, so repeated opens do not
-  hit PAC each time.
+<!-- FR-7 changed 2026-11-05 (user, chat): the deposit must show right after the driver presses "finalizar". -->
+- FR-7: THE SYSTEM SHALL keep each PAC answer for 10 seconds per route and day, so repeated opens do not hit
+  PAC each time while a new deposit still shows within seconds.
 - FR-8: IF the requester is not a driver, THEN THE SYSTEM SHALL deny access. A driver SHALL only ever get
   their own routes; the request takes no route or driver parameter.
 - FR-9: THE SYSTEM SHALL read PAC's address and integration credentials from the environment; without
@@ -53,12 +55,19 @@ Counterpart: PAC spec 015 (`specs/015-loop-driver-settlement`). Push notificatio
 - FR-10: THE app SHALL show a "Mi rendición" screen to drivers, reachable from the main navigation.
 - FR-11: WHILE a route is waiting for the entry control, THE app SHALL say so ("Vas a ver tu rendición
   después del control de entrada").
+<!-- FR-12/FR-13 changed 2026-11-05 (user, chat): the driver looks at the phone before going to the ATM to see how
+much cash to deposit, and right after "finalizar" to see what they paid against it, so they can deposit again. -->
 - FR-12: WHEN figures are available, THE app SHALL show for each route: expected total with its cash,
   checks and withholdings; deposited cash; confirmed checks and withholdings; total received; and the
   status group with the time of the last update.
-- FR-13: WHILE the difference is not final, THE app SHALL show "Pendiente de revisión de tesorería"
-  instead of a difference. WHEN it is final, THE app SHALL show the amount, marked as surplus, shortage
-  or no difference.
+- FR-12a: WHILE there is no deposit, THE app SHALL lead with the cash the driver has to deposit ("Tenés que
+  depositar $ X").
+- FR-13: WHEN there is a deposit, THE app SHALL lead with the live cash difference: "Te faltan $ X", "Te sobran
+  $ X" or "Depositaste justo", with the time the deposits were read. WHEN treasury's difference is final, THE
+  app SHALL also show it, marked as surplus, shortage or no difference; until then it says "Pendiente de
+  revisión de tesorería" for the official difference.
+- FR-13a: IF PIMS could not be read for this answer, THEN THE app SHALL say the deposits shown are the last
+  ones read, with their time.
 - FR-14: THE app SHALL show the "not loaded yet", "treasury unavailable" and "no route number" states with
   a short Spanish message, and a pull-to-refresh on the screen.
 - FR-15: WHILE the app is in the foreground, THE app SHALL check the settlement every 5 minutes, and

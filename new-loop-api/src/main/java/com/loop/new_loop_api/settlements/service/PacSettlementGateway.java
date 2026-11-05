@@ -20,14 +20,15 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Asks PAC for one route's settlement. Answers are kept 60 seconds per route and day so a driver opening the
+ * Asks PAC for one route's settlement. Answers are kept 10 seconds per route and day so a driver opening the
  * screen repeatedly does not hit PAC each time; failures are not kept, so a refresh retries at once.
  */
 @Component
 public class PacSettlementGateway {
 
     private static final Logger   log = LoggerFactory.getLogger(PacSettlementGateway.class);
-    static final Duration         CACHE_TTL = Duration.ofSeconds(60);
+    // Short: a deposit must show within seconds of the driver pressing "finalizar" (PAC throttles PIMS itself).
+    static final Duration         CACHE_TTL = Duration.ofSeconds(10);
     private static final int      NOT_FOUND = 404;
 
     private final PacSettlementClient client;
@@ -91,7 +92,8 @@ public class PacSettlementGateway {
         if (r == null) throw new IllegalStateException("PAC answered an empty body");
         return new SettlementFigures(r.expectedCash(), r.expectedChecks(), r.expectedWithholdings(), r.expectedTotal(),
                 r.depositedCash(), r.confirmedChecks(), r.confirmedWithholdings(), r.totalReceived(),
-                r.difference(), r.differenceType(), r.statusGroup(), r.expectedUpdatedAt(), r.lastDepositAt());
+                r.difference(), r.differenceType(), r.statusGroup(), r.expectedUpdatedAt(), r.lastDepositAt(),
+                r.cashDifference(), r.depositsCheckedAt(), Boolean.TRUE.equals(r.depositsLive()));
     }
 
     private record Key(long routeNumber, LocalDate date) {}

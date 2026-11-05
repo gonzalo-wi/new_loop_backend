@@ -62,16 +62,18 @@ class PacSettlementGatewayTest {
         assertThat(figures.expectedTotal()).isEqualByComparingTo("90000.00");
         assertThat(figures.depositedCash()).isEqualByComparingTo("91500.00");
         assertThat(figures.statusGroup()).isEqualTo("PENDING");
+        assertThat(figures.cashDifference()).isEqualByComparingTo("1500.00");
+        assertThat(figures.depositsLive()).isTrue();
         var expected = "Basic " + Base64.getEncoder().encodeToString("loop:s3cret".getBytes(StandardCharsets.UTF_8));
         verify(client).getSettlement(expected, 179L, DAY);
     }
 
     @Test
-    void shouldKeepAnAnswerForSixtySeconds() {
+    void shouldKeepAnAnswerForTenSeconds() {
         when(client.getSettlement(anyString(), anyLong(), any())).thenReturn(response());
 
         gateway.lookup(179, DAY);
-        clock.advanceSeconds(59);
+        clock.advanceSeconds(9);
         gateway.lookup(179, DAY);
         verify(client, times(1)).getSettlement(anyString(), anyLong(), any());
 
@@ -132,7 +134,7 @@ class PacSettlementGatewayTest {
         var at = OffsetDateTime.of(2026, 11, 5, 15, 42, 0, 0, ZoneOffset.ofHours(-3));
         return new PacSettlementResponse(179L, DAY, new BigDecimal("90000.00"), BigDecimal.ZERO, BigDecimal.ZERO,
                 new BigDecimal("90000.00"), new BigDecimal("91500.00"), BigDecimal.ZERO, BigDecimal.ZERO,
-                new BigDecimal("91500.00"), null, null, "PENDING", at, at);
+                new BigDecimal("91500.00"), null, null, "PENDING", at, at, new BigDecimal("1500.00"), at, true);
     }
 
     private static final class MutableClock extends Clock {

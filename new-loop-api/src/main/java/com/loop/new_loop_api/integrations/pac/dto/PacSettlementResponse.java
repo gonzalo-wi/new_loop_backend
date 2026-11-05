@@ -20,5 +20,8 @@ public record PacSettlementResponse(
         String differenceType,
         String statusGroup,
         OffsetDateTime expectedUpdatedAt,
-        OffsetDateTime lastDepositAt) {
+        OffsetDateTime lastDepositAt,
+        BigDecimal cashDifference,
+        OffsetDateTime depositsCheckedAt,
+        Boolean depositsLive) {
 }

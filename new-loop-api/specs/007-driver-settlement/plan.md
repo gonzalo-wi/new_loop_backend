@@ -22,7 +22,7 @@ Spec: `specs/007-driver-settlement/spec.md`. Contract with PAC: PAC repo
 - `lookup(routeNumber, date)` → `PacLookup` (sealed: `Found(figures)`, `NotLoaded`, `Unavailable(reason)`).
 - 404 → `NotLoaded`. Any other Feign or IO failure, or a timeout → `Unavailable`, logged with its cause (never the
   credentials).
-- 60-second cache per (routeNumber, date) in a `ConcurrentHashMap`, with expiry from the injected `Clock` (FR-7).
+- 10-second cache per (routeNumber, date) (was 60 s; changed 2026-11-05 so a deposit shows within seconds) in a `ConcurrentHashMap`, with expiry from the injected `Clock` (FR-7).
   `Found` and `NotLoaded` are cached; `Unavailable` is not, so a refresh retries. No new dependency.
 
 ### Feature — `settlements/` (new package, layered like `holidays/`)
@@ -87,3 +87,11 @@ direction.
 ## FR coverage
 FR-1..FR-9: backend (service, gateway, states, security). FR-10..FR-16: app. NFR-1: 2 s + 5 s timeouts.
 NFR-2: credentials only in `application.properties` placeholders and the Feign header.
+
+## Change 2026-11-05 (user, chat): live cash difference
+- Contract fields `cashDifference`, `depositsCheckedAt`, `depositsLive` (PAC FR-10..FR-12) pass through
+  `PacSettlementResponse` → `SettlementFigures`. A missing `depositsLive` reads as false.
+- Cache TTL 60 s → 10 s. PAC throttles its PIMS read to one per cashier every 20 s, so a short LOOP cache does not
+  hammer PIMS.
+- App: the figures card leads with "Tenés que depositar" (no deposit) or the live difference ("Te faltan" /
+  "Te sobran" / "Depositaste justo"); the official difference keeps its own line. FR-12a, FR-13, FR-13a.

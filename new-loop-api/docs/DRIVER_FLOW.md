@@ -178,9 +178,12 @@ Devuelve los repartos activos asignados al repartidor, para hoy (hora Argentina)
 `figures`: `expectedCash`, `expectedChecks`, `expectedWithholdings`, `expectedTotal`, `depositedCash`,
 `confirmedChecks`, `confirmedWithholdings`, `totalReceived`, `difference` y `differenceType` (`SURPLUS`, `SHORTAGE`
 o `NONE`; los dos son `null` hasta que tesorería procesa el reparto), `statusGroup` (`PENDING`, `READY`, `CLOSED`,
-`NO_DEPOSIT`), `expectedUpdatedAt` y `lastDepositAt`.
+`NO_DEPOSIT`), `expectedUpdatedAt`, `lastDepositAt`, `cashDifference` (en vivo: efectivo depositado menos efectivo
+esperado, `null` sin depósito), `depositsCheckedAt` (cuándo PAC leyó los depósitos de PIMS) y `depositsLive` (`false`
+si PIMS no respondió y se muestra lo último leído).
 
-- La respuesta de PAC se guarda 60 segundos por reparto y día; los errores no se guardan.
+- La respuesta de PAC se guarda 10 segundos por reparto y día, para que un depósito se vea enseguida; los errores no
+  se guardan. PAC lee PIMS en el momento (como máximo una vez cada 20 s por cajero).
 - Todas las consultas a PAC de un pedido arrancan juntas y comparten un límite de 5 segundos: con varios repartos
   el pedido tarda lo mismo que con uno.
 - **Orden de deploy:** primero PAC, después LOOP. Un PAC sin el endpoint contesta 404 y los repartos se verían como
