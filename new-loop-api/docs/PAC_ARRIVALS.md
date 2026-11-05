@@ -105,3 +105,8 @@ curl -i "http://192.168.0.42:8095/integrations/pac/arrivals"
 # Con un JWT de usuario: 401
 curl -i -H "Authorization: Bearer <token>" "http://192.168.0.42:8095/integrations/pac/arrivals"
 ```
+
+## Sentido inverso: rendición del repartidor
+
+LOOP también le pregunta a PAC, con estas mismas credenciales, la rendición de cada reparto
+(`GET /api/integrations/loop/settlement` en PAC). Ver `DRIVER_FLOW.md` §5 y la spec 007.

@@ -127,6 +127,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/app/version").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/holidays").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/holidays/**").hasRole("ADMIN")
+                        .requestMatchers("/settlements/**").hasRole("REPARTIDOR")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(handling -> handling

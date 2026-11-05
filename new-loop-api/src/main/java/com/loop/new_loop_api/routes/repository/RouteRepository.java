@@ -70,4 +70,7 @@ public interface RouteRepository extends JpaRepository<Route, UUID> {
                     """,
             nativeQuery = true)
     Page<Route> searchRoutes(@Param("search") String search, Pageable pageable);
+
+    /** The routes a driver drives today (spec 007). */
+    List<Route> findByDriverIdAndActiveTrueOrderByCodeAsc(UUID driverId);
 }
