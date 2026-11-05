@@ -83,3 +83,14 @@
 - Batch: `POST /stock-controls/remitos` (one PDF, page per remito, request order, 1-100 ids, all-or-nothing 409 listing routes) and `POST /stock-controls/remitos/printed`. Panel exits list: checkbox per row with remito, "Seleccionar no impresos", page size 100 for exits.
 - The V42 migration was not run against Postgres locally; it runs on deploy.
 
+
+## Spec 006 — Route statistics (2026-11-04)
+- Spec, plan and tasks approved (2026-11-04). Implemented on branch feat/route-statistics in both repos,
+  uncommitted. Endpoint GET /performance/routes; panel page /statistics/routes.
+- RouteStatisticsRepositoryTest green on local Postgres (user ran it, 5/5). Reviewer: VERDICT: APPROVED. Still
+  page has not been opened in a browser (T9); NFR-1 is measured after deploy.
+- A bound parameter repeated in SELECT and GROUP BY becomes two different $n in Postgres (42803): compute
+  such expressions once in a CTE. The reviewer caught this in the first version of the rejections query.
+- "Routes per day" counts routes that came back (ENTRY controls), per the user's choice.
+- The stay average leaves out exits made the next morning; they are shown as "morning exits".
+- Arrival time is the ENTRY control's creation time, not the gate (GPS) time; the user accepted it.

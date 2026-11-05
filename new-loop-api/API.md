@@ -451,6 +451,7 @@ Ordenado por hora de llegada. Sin llegadas: `data: []`. Se omiten los controles 
 | GET    | `/holidays`                    | Feriados desde el 1° del mes actual (o `?from=`) |
 | POST   | `/holidays`                    | Agrega un feriado (solo ADMIN) |
 | DELETE | `/holidays/{id}`               | Borra un feriado (solo ADMIN) |
+| GET    | `/performance/routes`          | Estadísticas de repartos: estadía, llegadas por hora y día, salidas de la mañana, rechazos (ver `docs/PERFORMANCE.md`) |
 | GET    | `/integrations/pac/arrivals`   | Rutas que ya volvieron en una fecha, para PAC (HTTP Basic de la integración, sin JWT) |
 
 ---
