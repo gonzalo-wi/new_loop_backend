@@ -242,3 +242,42 @@ Authorization: Bearer <token>
 | `importedBefore`  | Eventos que ya se habían importado en una corrida anterior              |
 | `skipped`         | Entradas de la auditoría que no se pudieron leer                        |
 | `skippedByReason` | `UNREADABLE_JSON` (el dato guardado está roto) o `MISSING_FIELDS` (le falta el tipo, la sucursal o el reparto) |
+
+## 4. Estadísticas de repartos
+
+```
+GET /performance/routes?from=2026-11-02&to=2026-11-08&branchId=...
+```
+
+Mismas reglas de acceso y de rango que el resumen: ADMIN (todas las sucursales o la que elija),
+SUPERVISOR (solo la suya), máximo 92 días, por defecto la semana actual. Spec 006.
+
+### Definiciones
+
+- **Llegada**: control de ENTRADA no cancelado. La hora es la de creación del control (no la del portón).
+- **Estadía**: desde la llegada hasta la creación de la SALIDA del mismo reparto hecha ese mismo día
+  (para los 7 días siguientes, por el domingo y los feriados). Si la salida se hizo otro día no hay
+  estadía (`withoutStay`); si se creó antes de la llegada es `inconsistent`. Ninguna de las dos entra en
+  el promedio.
+- **Salida de la mañana**: salida creada el mismo día de su fecha de control (o después), en vez del día
+  anterior.
+- **Rechazo**: cada vez que el chofer rechaza un control de entrada; cuenta en la fecha del evento y
+  usa el código de reparto que tenía en ese momento. `rate` = controles rechazados / llegadas del
+  reparto en el rango (`null` si no tuvo llegadas). Si un reparto cambió de código dentro del rango, aparece en dos
+  filas (una por código) y cada una se divide por todas las llegadas del reparto. `routeCode` es `null`
+  en rechazos viejos que no guardaron el reparto; el panel los muestra como "Sin reparto".
+
+### Response `200 OK` (`data`)
+
+| Campo                 | Qué es                                                                 |
+|-----------------------|------------------------------------------------------------------------|
+| `stay`                | `avgSeconds`, `medianSeconds`, `stays`, `withoutStay`, `inconsistent`   |
+| `stayByBranch[]`      | Promedio de estadía y cantidad por sucursal                            |
+| `stayByRoute[]`       | Promedio por reparto, de la estadía más larga a la más corta           |
+| `arrivalsByHour[24]`  | Llegadas por hora (0–23). Si `from == to`, `routes[]` trae qué repartos llegaron |
+| `arrivalsByDay[]`     | Por fecha: `total` y `branches[]` con la cantidad por sucursal (ceros incluidos) |
+| `exitsByDay[]`        | Por fecha: `morning`, `dayBefore` y `morningRoutes[]`                  |
+| `morningExitsByRoute[]` | Repartos con salidas de la mañana, de más a menos                    |
+| `rejectionsByRoute[]` | `rejections`, `rejectedControls`, `arrivals`, `rate` y hasta 3 `reasons[]` |
+
+Promedios, medianas y tasas sin datos vuelven `null`, nunca `0`.

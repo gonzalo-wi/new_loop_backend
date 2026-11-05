@@ -4,9 +4,11 @@ import com.loop.new_loop_api.common.response.ApiResponse;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.performance.dto.ImportReport;
 import com.loop.new_loop_api.performance.dto.PerformanceSummaryResponse;
+import com.loop.new_loop_api.performance.dto.RouteStatisticsResponse;
 import com.loop.new_loop_api.performance.dto.UserTrendResponse;
 import com.loop.new_loop_api.performance.service.iService.AuditHistoryImportService;
 import com.loop.new_loop_api.performance.service.iService.PerformanceMetricsService;
+import com.loop.new_loop_api.performance.service.iService.RouteStatisticsService;
 import com.loop.new_loop_api.stockcontrols.entity.ControlType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -29,6 +31,7 @@ public class PerformanceController {
 
     private final PerformanceMetricsService performanceMetricsService;
     private final AuditHistoryImportService auditHistoryImportService;
+    private final RouteStatisticsService    routeStatisticsService;
 
     @GetMapping("/summary")
     public ResponseEntity<ApiResponse<PerformanceSummaryResponse>> getSummary(
@@ -41,6 +44,15 @@ public class PerformanceController {
         return ResponseEntity.ok(ApiResponse.ok(
                 performanceMetricsService.getSummary(from, to, branchId, userId, controlType, movementType),
                 "Performance metrics retrieved successfully"));
+    }
+
+    @GetMapping("/routes")
+    public ResponseEntity<ApiResponse<RouteStatisticsResponse>> getRouteStatistics(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID branchId) {
+        return ResponseEntity.ok(ApiResponse.ok(routeStatisticsService.getRouteStatistics(from, to, branchId),
+                "Route statistics retrieved successfully"));
     }
 
     /** One-time import of the stock-control history still in the audit log; safe to run again. Admins only. */
