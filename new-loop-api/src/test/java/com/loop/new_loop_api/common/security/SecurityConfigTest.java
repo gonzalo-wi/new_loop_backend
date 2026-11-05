@@ -7,6 +7,10 @@ import com.loop.new_loop_api.auth.service.iService.AuthService;
 import com.loop.new_loop_api.common.config.SecurityConfig;
 import com.loop.new_loop_api.common.controller.HealthController;
 import com.loop.new_loop_api.common.metrics.ErrorMetrics;
+import com.loop.new_loop_api.holidays.controller.HolidayController;
+import com.loop.new_loop_api.stockcontrols.controller.StockControlController;
+import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
+import com.loop.new_loop_api.holidays.service.iService.HolidayService;
 import com.loop.new_loop_api.users.controller.UserController;
 import com.loop.new_loop_api.users.entity.Role;
 import com.loop.new_loop_api.users.service.iService.UserService;
@@ -29,6 +33,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -39,7 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** The real app filter chain against a few real controllers whose services are mocked. */
-@WebMvcTest(controllers = {UserController.class, AppVersionController.class, AuthController.class, HealthController.class})
+@WebMvcTest(controllers = {UserController.class, AppVersionController.class, AuthController.class, HealthController.class,
+        HolidayController.class, StockControlController.class})
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JsonAuthErrorHandler.class, JwtService.class, SecurityConfigTest.SystemClock.class})
 @TestPropertySource(properties = {
         "app.jwt.secret=" + SecurityConfigTest.SECRET,
@@ -66,6 +72,8 @@ class SecurityConfigTest {
     @MockitoBean private AppVersionService      appVersionService;
     @MockitoBean private AuthService            authService;
     @MockitoBean private ErrorMetrics           errorMetrics;
+    @MockitoBean private HolidayService         holidayService;
+    @MockitoBean private StockControlService    stockControlService;
 
     private String tokenFor(String username, Role role) {
         when(authenticatedUserCache.findActive(username))
@@ -151,6 +159,93 @@ class SecurityConfigTest {
     void shouldLetAnAdminUploadAnApk() throws Exception {
         mockMvc.perform(apkUpload().header("Authorization", "Bearer " + tokenFor("boss", Role.ADMIN)))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void shouldLetAnyLoggedInUserReadTheHolidays() throws Exception {
+        mockMvc.perform(get("/holidays").header("Authorization", "Bearer " + tokenFor("sup", Role.SUPERVISOR)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldAnswer401_when_theHolidaysAreReadWithoutAToken() throws Exception {
+        mockMvc.perform(get("/holidays")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldAnswer403_when_aNonAdminAddsAHoliday() throws Exception {
+        mockMvc.perform(holidayCreation().header("Authorization", "Bearer " + tokenFor("sup", Role.SUPERVISOR)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldAnswer403_when_aNonAdminDeletesAHoliday() throws Exception {
+        mockMvc.perform(delete("/holidays/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + tokenFor("sup", Role.SUPERVISOR)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldLetAnAdminAddAndDeleteHolidays() throws Exception {
+        mockMvc.perform(holidayCreation().header("Authorization", "Bearer " + tokenFor("boss", Role.ADMIN)))
+                .andExpect(status().isCreated());
+        mockMvc.perform(delete("/holidays/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + tokenFor("boss", Role.ADMIN)))
+                .andExpect(status().isNoContent());
+    }
+
+    // Batch remito requests (spec 005, FR-20): validated before reaching the service.
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"/stock-controls/remitos", "/stock-controls/remitos/printed"})
+    void shouldAnswer400_when_aRemitoBatchIsEmpty(String path) throws Exception {
+        mockMvc.perform(remitoBatch(path, "{\"ids\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("ids must not be empty")));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"/stock-controls/remitos", "/stock-controls/remitos/printed"})
+    void shouldAnswer400_when_aRemitoBatchHasMoreThan100Ids(String path) throws Exception {
+        var ids = java.util.stream.IntStream.range(0, 101)
+                .mapToObj(i -> "\"" + UUID.randomUUID() + "\"")
+                .collect(java.util.stream.Collectors.joining(","));
+
+        mockMvc.perform(remitoBatch(path, "{\"ids\":[" + ids + "]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("at most 100 remitos")));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"/stock-controls/remitos", "/stock-controls/remitos/printed"})
+    void shouldAnswer400_when_aRemitoBatchHasANullId(String path) throws Exception {
+        mockMvc.perform(remitoBatch(path, "{\"ids\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("ids must not contain null")));
+    }
+
+    @Test
+    void shouldAcceptARemitoBatchOf100Ids() throws Exception {
+        var ids = java.util.stream.IntStream.range(0, 100)
+                .mapToObj(i -> "\"" + UUID.randomUUID() + "\"")
+                .collect(java.util.stream.Collectors.joining(","));
+        when(stockControlService.generateRemitosPdf(org.mockito.ArgumentMatchers.anyList())).thenReturn(new byte[]{1});
+
+        mockMvc.perform(remitoBatch("/stock-controls/remitos", "{\"ids\":[" + ids + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"));
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder remitoBatch(String path, String body) {
+        return post(path)
+                .header("Authorization", "Bearer " + tokenFor("sup", Role.SUPERVISOR))
+                .contentType("application/json")
+                .content(body);
+    }
+
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder holidayCreation() {
+        return post("/holidays")
+                .contentType("application/json")
+                .content("{\"date\":\"2026-11-23\",\"description\":\"Soberanía Nacional\"}");
     }
 
     private static org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder apkUpload() {

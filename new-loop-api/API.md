@@ -446,6 +446,11 @@ Ordenado por hora de llegada. Sin llegadas: `data: []`. Se omiten los controles 
 | PATCH  | `/stock-controls/{id}`         | Modificar control (antes de que el repartidor lo acepte; si estaba rechazado, lo reenvía) |
 | POST   | `/stock-controls/{id}/approve` | El repartidor acepta → ACCEPTED_BY_DRIVER y se envía a Aguas |
 | POST   | `/stock-controls/{id}/reject`  | El repartidor rechaza con motivo → REJECTED_BY_DRIVER |
+| POST   | `/stock-controls/remitos`         | Varios remitos en un PDF, uno por hoja (ver `docs/STOCK_CONTROLS.md`) |
+| POST   | `/stock-controls/remitos/printed` | Marca varios remitos como impresos |
+| GET    | `/holidays`                    | Feriados desde el 1° del mes actual (o `?from=`) |
+| POST   | `/holidays`                    | Agrega un feriado (solo ADMIN) |
+| DELETE | `/holidays/{id}`               | Borra un feriado (solo ADMIN) |
 | GET    | `/integrations/pac/arrivals`   | Rutas que ya volvieron en una fecha, para PAC (HTTP Basic de la integración, sin JWT) |
 
 ---

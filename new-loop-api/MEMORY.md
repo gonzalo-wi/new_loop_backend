@@ -75,3 +75,11 @@
 - Panel and app end the session on 401 and when the token `exp` passes (30 s check + focus), and show "Tu sesión venció" on login.
 - Still open: per-endpoint role rules (any logged-in role can call e.g. `POST /users`). Swagger UI now needs a token.
 - Deploy backend, panel and new APK the same day; old APKs already log out on 401.
+
+## Spec 005 — Holiday remito, batch printing, quantities in bulks (2026-11-04, implemented, not deployed)
+- Holiday calendar (`holidays` table, V42) for every branch; ADMIN adds/deletes, any logged-in user reads. Today and past dates allowed (unplanned holidays).
+- The remito checks the calendar against the control date (delivery day) every time it is rendered, so reprints follow the calendar. Holiday remito: no company or fiscal data, title "REMITO", Aguas Formulario/Remito Nº kept. Still sent to Aguas. Business may still change the title or drop the Aguas numbers ("they don't know yet").
+- Bulk products (`packQuantity` > 1) print the bulk count alone ("2"); a non-exact quantity prints units with "u" ("15 u"). Only the PDF changes.
+- Batch: `POST /stock-controls/remitos` (one PDF, page per remito, request order, 1-100 ids, all-or-nothing 409 listing routes) and `POST /stock-controls/remitos/printed`. Panel exits list: checkbox per row with remito, "Seleccionar no impresos", page size 100 for exits.
+- The V42 migration was not run against Postgres locally; it runs on deploy.
+

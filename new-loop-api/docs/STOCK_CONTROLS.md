@@ -438,6 +438,55 @@ El navegador lo abre directo (se puede ver o guardar desde ahí). El PDF incluye
 ```
 > Pasa si el control es de tipo `ENTRY` (los remitos son solo de salidas), o si la salida todavía no se envió/confirmó con Aguas.
 
+### Cantidades en el remito
+
+La columna **Total** muestra los productos por bulto (`packQuantity` > 1) en bultos: 12 unidades con bulto de 6 salen como `2`. Si la cantidad no completa bultos enteros, sale en unidades con una `u` (`15 u`) para que no se lea como bultos. Los productos por unidad no cambian. Solo cambia lo impreso; las cantidades se siguen guardando en unidades.
+
+### Remito de feriado
+
+Si la **fecha del control** (`controlDate`, el día de reparto) está cargada como feriado (`/holidays`), el remito sale sin los datos de la empresa: sin razón social, dirección, teléfono, CUIT, IIBB, condición de IVA ni "Cód. 91 · Comprobante R". El título es `REMITO` y mantiene el Formulario y el Nº de Remito de Aguas. El control se manda a Aguas igual que cualquier otro día.
+
+El calendario se consulta cada vez que se genera el PDF: si se agrega o se borra un feriado, cambia también la reimpresión de remitos ya impresos. Aplica a los dos endpoints de arriba y al lote de abajo, así que la app recibe el mismo remito sin cambios.
+
+### Varios remitos en un PDF
+
+```
+POST /stock-controls/remitos
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "ids": ["<controlId>", "<controlId>"] }
+```
+
+Devuelve un solo `application/pdf` con un remito por hoja, en el orden pedido (ids repetidos se imprimen una vez). Entre 1 y 100 ids; fuera de eso, `400`. Si alguno no existe o no tiene remito, `409` y no se genera nada; el mensaje lista todos los que fallaron:
+
+```json
+{ "status": 409, "message": "Some remitos are not available: route 22: the control has not been confirmed with Aguas yet; control <id>: not found" }
+```
+
+### Marcar varios como impresos
+
+```
+POST /stock-controls/remitos/printed
+{ "ids": ["<controlId>", "<controlId>"] }
+```
+
+Mismas reglas que el anterior; marca todos en una sola transacción o ninguno. Responde `200` con la lista de controles actualizados.
+
+---
+
+## Feriados
+
+```
+GET    /holidays?from=2026-11-01      # cualquier usuario logueado; sin from, desde el 1° del mes actual
+POST   /holidays                      # solo ADMIN — { "date": "2026-11-23", "description": "Soberanía Nacional" }
+DELETE /holidays/{id}                 # solo ADMIN
+```
+
+- Valen para todas las sucursales. Se puede cargar hoy o una fecha pasada (feriado imprevisto).
+- Una fecha que ya es feriado → `409`. Un id que no existe → `404`. Otros roles en `POST`/`DELETE` → `403`.
+- `GET` devuelve `[{ "id", "date", "description" }]` ordenado por fecha.
+
 ---
 
 ## Referencia de campos
