@@ -17,6 +17,7 @@ import com.loop.new_loop_api.dispensers.exception.SerialsAlreadyLoadedException;
 import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
+import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentLookupService;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
@@ -67,6 +68,7 @@ class DispenserMovementServiceImplTest {
     @Mock private UnregisteredDispenserService  unregisteredDispenserService;
     @Mock private DispenserMovementMetrics      dispenserMovementMetrics;
     @Mock private RouteRepository               routeRepository;
+    @Mock private AguasEquipmentLookupService   aguasEquipmentLookupService;
 
     private DispenserMovementServiceImpl dispenserMovementService;
 
@@ -75,7 +77,7 @@ class DispenserMovementServiceImplTest {
         dispenserMovementService = new DispenserMovementServiceImpl(
                 dispenserMovementRepository, dispenserMovementMapper, currentUserProvider, auditService,
                 eventPublisher, aguasEquipmentService, odooDispatchService, unregisteredDispenserService,
-                dispenserMovementMetrics, routeRepository);
+                dispenserMovementMetrics, routeRepository, aguasEquipmentLookupService);
     }
 
     private CreateDispenserMovementRequest loadRequest(List<String> serials) {
@@ -285,6 +287,81 @@ class DispenserMovementServiceImplTest {
         assertThat(movement.getStatus()).isEqualTo(DispenserMovementStatus.SKIPPED_UNREGISTERED);
         verify(dispenserMovementMetrics).recordUnavailableInOdooExcluded(1);
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void shouldExcludeSerialsMissingInAguasAndStillPublish_when_someLoadSerialsAreNotInAguas() {
+        var movement = loadMovement(List.of("SN-1", "SN-2", "SN-3"));
+        stubLoadUpToResponse(movement);
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of());
+        when(aguasEquipmentLookupService.findMissingSerials(List.of("SN-1", "SN-2", "SN-3")))
+                .thenReturn(Set.of("SN-3"));
+
+        dispenserMovementService.createMovement(loadRequest(List.of("SN-1", "SN-2", "SN-3")));
+
+        assertThat(movement.getExcludedSerials()).containsExactly("SN-3");
+        assertThat(movement.serialsToSend()).containsExactly("SN-1", "SN-2");
+        assertThat(movement.getStatus()).isNotEqualTo(DispenserMovementStatus.SKIPPED_UNREGISTERED);
+        verify(dispenserMovementMetrics).recordMissingInAguasExcluded(1);
+        verify(eventPublisher).publishEvent(any(DispenserMovementReadyForAguasEvent.class));
+    }
+
+    @Test
+    void shouldOnlyCheckInAguasTheSerialsOdooLeftToSend_when_loadHasSerialsUnavailableInOdoo() {
+        var movement = loadMovement(List.of("SN-1", "sn-2"));
+        stubLoadUpToResponse(movement);
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-1"));
+        when(aguasEquipmentLookupService.findMissingSerials(List.of("sn-2"))).thenReturn(Set.of("SN-2"));
+
+        dispenserMovementService.createMovement(loadRequest(List.of("SN-1", "sn-2")));
+
+        assertThat(movement.getExcludedSerials()).containsExactly("SN-1", "sn-2");
+        assertThat(movement.getStatus()).isEqualTo(DispenserMovementStatus.SKIPPED_UNREGISTERED);
+        verify(dispenserMovementMetrics).recordMissingInAguasExcluded(1);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void shouldNotCheckInAguas_when_odooAlreadyExcludedEveryLoadSerial() {
+        var movement = loadMovement(List.of("SN-1"));
+        stubLoadUpToResponse(movement);
+        when(odooDispatchService.findUnavailableEquipos(any())).thenReturn(Set.of("SN-1"));
+
+        dispenserMovementService.createMovement(loadRequest(List.of("SN-1")));
+
+        verify(aguasEquipmentLookupService, never()).findMissingSerials(any());
+    }
+
+    @Test
+    void shouldNotCheckInAguas_when_movementTypeIsUnload() {
+        var movement = DispenserMovement.builder()
+                .type(DispenserMovementType.UNLOAD)
+                .routeCode("1")
+                .serials(new java.util.ArrayList<>(List.of("SN-1")))
+                .build();
+        when(dispenserMovementRepository.existsByTypeAndRouteCodeAndMovementDateAndStatusNot(
+                any(), any(), any(), any())).thenReturn(false);
+        stubLoadUpToResponse(movement);
+        when(unregisteredDispenserService.findUnregisteredSerials(any())).thenReturn(Set.of());
+
+        dispenserMovementService.createMovement(unloadRequest(List.of("SN-1")));
+
+        verify(aguasEquipmentLookupService, never()).findMissingSerials(any());
+    }
+
+    private static DispenserMovement loadMovement(List<String> serials) {
+        return DispenserMovement.builder()
+                .type(DispenserMovementType.LOAD)
+                .routeCode("1")
+                .serials(new java.util.ArrayList<>(serials))
+                .build();
+    }
+
+    private void stubLoadUpToResponse(DispenserMovement movement) {
+        when(dispenserMovementMapper.toEntity(any(), any())).thenReturn(movement);
+        when(currentUserProvider.current()).thenReturn(Optional.empty());
+        when(dispenserMovementRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dispenserMovementMapper.toResponse(any())).thenReturn(DispenserMovementResponse.builder().build());
     }
 
     @Test

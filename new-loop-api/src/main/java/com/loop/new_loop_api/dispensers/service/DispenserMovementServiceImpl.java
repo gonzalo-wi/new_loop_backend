@@ -21,6 +21,7 @@ import com.loop.new_loop_api.dispensers.mapper.DispenserMovementMapper;
 import com.loop.new_loop_api.dispensers.metrics.DispenserMovementMetrics;
 import com.loop.new_loop_api.dispensers.repository.DispenserMovementRepository;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementService;
+import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentLookupService;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.jmobile.service.iService.UnregisteredDispenserService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
@@ -73,6 +74,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
     private final UnregisteredDispenserService unregisteredDispenserService;
     private final DispenserMovementMetrics    dispenserMovementMetrics;
     private final RouteRepository             routeRepository;
+    private final AguasEquipmentLookupService aguasEquipmentLookupService;
 
     @Override
     @Transactional
@@ -90,6 +92,7 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
         var movement = buildMovement(request, date, replaced);
         excludeUnregisteredSerials(movement);
         excludeUnavailableInOdoo(movement);
+        excludeMissingInAguas(movement);
         var saved    = insertMovement(movement);
         var response = toResponse(saved, !earlierLoads.isEmpty());
         auditService.register("CREATE_DISPENSER_MOVEMENT", "DispenserMovement", saved.getId(), null, response);
@@ -326,6 +329,35 @@ public class DispenserMovementServiceImpl implements DispenserMovementService {
             movement.setStatus(DispenserMovementStatus.SKIPPED_UNREGISTERED);
             log.warn("Movement on route {} not sent to Aguas: every scanned serial is unavailable in Odoo",
                     movement.getRouteCode());
+        }
+    }
+
+    /**
+     * On LOAD, serials Aguas reports as not existing are kept on the movement but never forwarded, the same way
+     * as the Odoo check. Only the serials Odoo left to send are asked about. A failed lookup excludes nothing.
+     */
+    private void excludeMissingInAguas(DispenserMovement movement) {
+        if (movement.getType() != DispenserMovementType.LOAD) return;
+        var candidates = movement.serialsToSend();
+        if (candidates.isEmpty()) return;
+
+        var missing = aguasEquipmentLookupService.findMissingSerials(candidates);
+        if (missing.isEmpty()) return;
+
+        var excluded = candidates.stream()
+                .filter(serial -> missing.contains(normalizeSerial(serial)))
+                .toList();
+        if (excluded.isEmpty()) return;
+
+        movement.getExcludedSerials().addAll(excluded);
+        log.warn("Movement on route {}: {} of {} serial(s) excluded as not existing in Aguas: {}",
+                movement.getRouteCode(), excluded.size(), movement.getSerials().size(), excluded);
+        dispenserMovementMetrics.recordMissingInAguasExcluded(excluded.size());
+
+        if (movement.serialsToSend().isEmpty()) {
+            movement.setStatus(DispenserMovementStatus.SKIPPED_UNREGISTERED);
+            log.warn("Movement on route {} not sent to Aguas: no scanned serial is both available in Odoo and "
+                    + "existing in Aguas", movement.getRouteCode());
         }
     }
 
