@@ -4,11 +4,14 @@ import com.loop.new_loop_api.common.response.ApiResponse;
 import com.loop.new_loop_api.dispensers.dto.CreateDispenserMovementRequest;
 import com.loop.new_loop_api.dispensers.dto.DispenserMovementResponse;
 import com.loop.new_loop_api.dispensers.dto.SerialHistoryResponse;
+import com.loop.new_loop_api.dispensers.dto.ValidateAguasEquipmentRequest;
 import com.loop.new_loop_api.dispensers.dto.ValidateOdooEquipmentRequest;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementStatus;
 import com.loop.new_loop_api.dispensers.entity.DispenserMovementType;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserMovementService;
 import com.loop.new_loop_api.dispensers.service.iService.DispenserSerialHistoryService;
+import com.loop.new_loop_api.integrations.aguas.dto.AguasEquipmentCheck;
+import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentLookupService;
 import com.loop.new_loop_api.integrations.aguas.service.iService.AguasEquipmentService;
 import com.loop.new_loop_api.integrations.odoo.service.iService.OdooDispatchService;
 import jakarta.validation.Valid;
@@ -23,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,6 +38,7 @@ public class DispenserMovementController {
     private final DispenserSerialHistoryService dispenserSerialHistoryService;
     private final AguasEquipmentService    aguasEquipmentService;
     private final OdooDispatchService      odooDispatchService;
+    private final AguasEquipmentLookupService aguasEquipmentLookupService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<DispenserMovementResponse>> createMovement(
@@ -72,6 +77,12 @@ public class DispenserMovementController {
     @GetMapping("/aguas/states")
     public ResponseEntity<ApiResponse<Object>> getAguasStates() {
         return ResponseEntity.ok(ApiResponse.ok(aguasEquipmentService.getDestinationStates()));
+    }
+
+    @PostMapping("/aguas/validate-equipment")
+    public ResponseEntity<ApiResponse<List<AguasEquipmentCheck>>> validateAguasEquipment(
+            @Valid @RequestBody ValidateAguasEquipmentRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(aguasEquipmentLookupService.check(request.getEquipos())));
     }
 
     @GetMapping("/odoo/available-equipment")
