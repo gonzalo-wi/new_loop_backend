@@ -145,7 +145,19 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional(readOnly = true)
     public StockControlResponse getControlById(UUID id) {
-        return stockControlMapper.toResponse(findControlById(id));
+        var control = findControlById(id);
+        if (!isVisibleToReadOnlyUser(control)) {
+            throw new StockControlNotFoundException(id);
+        }
+        return stockControlMapper.toResponse(control);
+    }
+
+    /** Read-only roles only see their own branch; "not found" so other branches' ids are not revealed. */
+    private boolean isVisibleToReadOnlyUser(StockControl control) {
+        return currentUserProvider.current()
+                .filter(user -> user.role().isReadOnly())
+                .map(user -> control.getBranch() != null && control.getBranch().getId().equals(user.branchId()))
+                .orElse(true);
     }
 
     @Override

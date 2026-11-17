@@ -452,6 +452,7 @@ Ordenado por hora de llegada. Sin llegadas: `data: []`. Se omiten los controles 
 | POST   | `/holidays`                    | Agrega un feriado (solo ADMIN) |
 | DELETE | `/holidays/{id}`               | Borra un feriado (solo ADMIN) |
 | GET    | `/performance/routes`          | Estadísticas de repartos: estadía, llegadas por hora y día, salidas de la mañana, rechazos (ver `docs/PERFORMANCE.md`) |
+| GET    | `/load-forecast?routeNumber=`  | Pronóstico de carga de un reparto para el próximo día de reparto: promedio de sus controles de salida en los últimos 4 mismos días de la semana (solo CLARKISTA de su sucursal y ADMIN, ver `docs/STOCK_CONTROLS.md`) |
 | GET    | `/settlements/me`              | Rendición del repartidor logueado: esperado vs depositado, leído de PAC (solo REPARTIDOR, ver `docs/DRIVER_FLOW.md` §5) |
 | GET    | `/integrations/pac/arrivals`   | Rutas que ya volvieron en una fecha, para PAC (HTTP Basic de la integración, sin JWT) |
 

@@ -6,6 +6,7 @@ import com.loop.new_loop_api.common.response.ApiError;
 import com.loop.new_loop_api.dispensers.exception.InvalidBaggedSerialsException;
 import com.loop.new_loop_api.dispensers.exception.InvalidStatsRangeException;
 import com.loop.new_loop_api.fleet.exception.FleetProviderException;
+import com.loop.new_loop_api.loadforecast.exception.InvalidRouteNumberException;
 import com.loop.new_loop_api.performance.exception.InvalidMetricsRangeException;
 import com.loop.new_loop_api.users.exception.BranchRequiredForRoleException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -103,6 +104,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidStatsRangeException.class)
     public ResponseEntity<ApiError> handleInvalidStatsRange(InvalidStatsRangeException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), ex, request);
+    }
+
+    @ExceptionHandler(InvalidRouteNumberException.class)
+    public ResponseEntity<ApiError> handleInvalidRouteNumber(InvalidRouteNumberException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), ex, request);
     }
 
