@@ -17,12 +17,12 @@ Status: approved (user, 2026-11-16, chat)
 - [x] **T5. Load day and calculator (pure domain).** FR-8, FR-10, FR-11
   - Done when: `LoadDayTest` and `LoadForecastCalculatorTest` pass (Sunday skip, reference days,
     average over controls found, half-up, zero dropped, ordering, empty).
-- [ ] **T6. Forecast service and repository query.** FR-8, FR-9, FR-10, FR-11, FR-13, NFR-1
+- [x] **T6. Forecast service and repository query.** FR-8, FR-9, FR-10, FR-11, FR-13, NFR-1
   - Done when: `LoadForecastServiceImplTest` (fixed `Clock`) covers own branch, another branch → 404,
     duplicated number → 404, admin, no controls → empty; `LoadForecastRepositoryTest` (Postgres) shows
     the query returns only the route's non-cancelled EXIT controls on the reference days with items
     and products fetched, and that V43 accepts both roles.
-  - Pending: `LoadForecastRepositoryTest` written but not yet run against Postgres (needs `LOOP_TEST_DB_URL`).
+  - Ran against local Postgres `loop_test` on 2026-11-17: 3/3 pass.
 - [x] **T7. Forecast controller and endpoint.** FR-8, FR-9, FR-12, FR-13
   - Done when: the response shape, 404, 400 and the GET-only rule (CLARKISTA POST → 403) are checked
     in `SecurityConfigTest`, which runs the real filter chain against the controller.

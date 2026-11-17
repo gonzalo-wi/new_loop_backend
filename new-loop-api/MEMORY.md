@@ -12,7 +12,11 @@
     default); forecast uses EXIT `totalQuantity`, BigDecimal half-up, duplicated route number = not found.
   - Backend: full suite 663 run, 0 failures, 54 skipped. Review fixes: the forecast matcher is GET only
     (anything else under /load-forecast goes through the allowlist -> 403). LoadForecastRepositoryTest
-    (findReferenceControls + V43) written but not yet run against Postgres: run it before merging.
+    (findReferenceControls + V43) passes on local Postgres (2026-11-17).
+  - Pre-existing Postgres failures, identical on main (2026-11-17), not caused by 008:
+    NewLoopApiApplicationTests.contextLoads (context without test DB props), StockControlDuplicateConcurrencyTest
+    (3: no authenticated user, edits now require CONTROLADOR/SUPERVISOR/ADMIN), DispenserSerialHistoryRepositoryTest
+    .shouldPersistBaggedSerials (LazyInitializationException on baggedSerials).
   - Panel branch feat/viewer-role, app branch feat/clarkista-load-forecast. Deploy the panel together with
     the backend: the panel maps unknown roles to "controller", so an old panel would show a viewer the full menu
     (the API still answers 403).
