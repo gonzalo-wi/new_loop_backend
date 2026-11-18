@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -54,4 +55,17 @@ public interface StockControlRepository extends JpaRepository<StockControl, UUID
     Set<UUID> findRouteIdsForDate(@Param("type") ControlType type,
                                   @Param("date") LocalDate date,
                                   @Param("excludedStatus") ControlStatus excludedStatus);
+
+    /** A route's controls on the given dates, with items and products in the same query (load forecast). */
+    @Query("""
+            select distinct sc from StockControl sc
+            left join fetch sc.items i
+            left join fetch i.product
+            where sc.route.id = :routeId and sc.type = :type and sc.controlDate in :dates
+              and sc.status <> :excludedStatus
+            """)
+    List<StockControl> findReferenceControls(@Param("routeId") UUID routeId,
+                                             @Param("type") ControlType type,
+                                             @Param("dates") Collection<LocalDate> dates,
+                                             @Param("excludedStatus") ControlStatus excludedStatus);
 }

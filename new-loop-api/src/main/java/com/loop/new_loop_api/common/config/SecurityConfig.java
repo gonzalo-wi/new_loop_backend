@@ -2,6 +2,7 @@ package com.loop.new_loop_api.common.config;
 
 import com.loop.new_loop_api.common.security.JsonAuthErrorHandler;
 import com.loop.new_loop_api.common.security.JwtAuthenticationFilter;
+import com.loop.new_loop_api.common.security.ReadOnlyRoleAuthorizationManager;
 import com.loop.new_loop_api.integrations.pac.security.PacIntegrationAuthenticationProvider;
 import com.loop.new_loop_api.integrations.pac.security.PacIntegrationCredentials;
 import lombok.RequiredArgsConstructor;
@@ -128,7 +129,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/holidays").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/holidays/**").hasRole("ADMIN")
                         .requestMatchers("/settlements/**").hasRole("REPARTIDOR")
-                        .anyRequest().authenticated()
+                        .requestMatchers(HttpMethod.GET, "/load-forecast").hasAnyRole("CLARKISTA", "ADMIN")
+                        // Authenticated, and read-only roles (VISUALIZADOR, CLARKISTA) only on their allowlist.
+                        .anyRequest().access(new ReadOnlyRoleAuthorizationManager())
                 )
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(jsonAuthErrorHandler)

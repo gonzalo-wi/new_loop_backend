@@ -8,6 +8,11 @@ import com.loop.new_loop_api.common.config.SecurityConfig;
 import com.loop.new_loop_api.common.controller.HealthController;
 import com.loop.new_loop_api.common.metrics.ErrorMetrics;
 import com.loop.new_loop_api.holidays.controller.HolidayController;
+import com.loop.new_loop_api.loadforecast.controller.LoadForecastController;
+import com.loop.new_loop_api.loadforecast.dto.LoadForecastItemResponse;
+import com.loop.new_loop_api.loadforecast.dto.LoadForecastResponse;
+import com.loop.new_loop_api.loadforecast.exception.ForecastRouteNotFoundException;
+import com.loop.new_loop_api.loadforecast.service.iService.LoadForecastService;
 import com.loop.new_loop_api.settlements.controller.SettlementController;
 import com.loop.new_loop_api.settlements.service.iService.DriverSettlementService;
 import com.loop.new_loop_api.stockcontrols.controller.StockControlController;
@@ -39,6 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -47,7 +53,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** The real app filter chain against a few real controllers whose services are mocked. */
 @WebMvcTest(controllers = {UserController.class, AppVersionController.class, AuthController.class, HealthController.class,
-        HolidayController.class, StockControlController.class, SettlementController.class})
+        HolidayController.class, StockControlController.class, SettlementController.class, LoadForecastController.class})
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JsonAuthErrorHandler.class, JwtService.class, SecurityConfigTest.SystemClock.class})
 @TestPropertySource(properties = {
         "app.jwt.secret=" + SecurityConfigTest.SECRET,
@@ -77,6 +83,7 @@ class SecurityConfigTest {
     @MockitoBean private HolidayService         holidayService;
     @MockitoBean private StockControlService    stockControlService;
     @MockitoBean private DriverSettlementService driverSettlementService;
+    @MockitoBean private LoadForecastService     loadForecastService;
 
     private String tokenFor(String username, Role role) {
         when(authenticatedUserCache.findActive(username))
@@ -91,6 +98,136 @@ class SecurityConfigTest {
     private static String expiredToken() {
         var yesterday = Clock.fixed(Instant.now().minusSeconds(2 * 86_400), ZoneOffset.UTC);
         return new JwtService(SECRET, yesterday).generateToken(user("ctrl"), Map.of());
+    }
+
+    private static final String CONTROL_ID = "7f1c2b4e-0d6a-4c8e-9b1a-2f3e4d5c6b7a";
+
+    @Test
+    void shouldLetAViewerReadStockControls() throws Exception {
+        var token = tokenFor("visor", Role.VISUALIZADOR);
+        mockMvc.perform(get("/stock-controls").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/stock-controls/" + CONTROL_ID).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldAnswer403_when_aViewerTriesToChangeOrPrintAControl() throws Exception {
+        var auth = "Bearer " + tokenFor("visor", Role.VISUALIZADOR);
+        var json = "application/json";
+        mockMvc.perform(post("/stock-controls").header("Authorization", auth).contentType(json).content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/stock-controls/" + CONTROL_ID).header("Authorization", auth).contentType(json).content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/stock-controls/" + CONTROL_ID + "/approve").header("Authorization", auth))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/stock-controls/" + CONTROL_ID + "/reject").header("Authorization", auth).contentType(json).content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/stock-controls/" + CONTROL_ID + "/correct").header("Authorization", auth).contentType(json).content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/stock-controls/" + CONTROL_ID + "/remito").header("Authorization", auth))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/stock-controls/remitos").header("Authorization", auth).contentType(json).content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/stock-controls/remitos/printed").header("Authorization", auth).contentType(json).content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldAnswer403_when_aViewerReadsOutsideStockControls() throws Exception {
+        mockMvc.perform(get("/users").header("Authorization", "Bearer " + tokenFor("visor", Role.VISUALIZADOR)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/holidays").header("Authorization", "Bearer " + tokenFor("visor", Role.VISUALIZADOR)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldAnswer403_when_aClarkistaReadsStockControls() throws Exception {
+        mockMvc.perform(get("/stock-controls").header("Authorization", "Bearer " + tokenFor("clark", Role.CLARKISTA)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/users").header("Authorization", "Bearer " + tokenFor("clark", Role.CLARKISTA)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldAnswer403_when_anotherRoleReadsTheLoadForecast() throws Exception {
+        for (var role : List.of(Role.REPARTIDOR, Role.CONTROLADOR, Role.SUPERVISOR, Role.VISUALIZADOR)) {
+            mockMvc.perform(get("/load-forecast").param("routeNumber", "179")
+                            .header("Authorization", "Bearer " + tokenFor("u" + role, role)))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void shouldKeepPublicEndpointsOpen_forReadOnlyRoles() throws Exception {
+        mockMvc.perform(get("/app/version").header("Authorization", "Bearer " + tokenFor("clark", Role.CLARKISTA)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("{\"username\":\"visor\",\"password\":\"secret\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldAnswer401_when_anAnonymousUserReadsStockControls() throws Exception {
+        mockMvc.perform(get("/stock-controls")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldLetAClarkistaReadTheLoadForecast() throws Exception {
+        when(loadForecastService.forecast(179)).thenReturn(new LoadForecastResponse("Rto 179",
+                java.time.LocalDate.of(2026, 11, 17), List.of(java.time.LocalDate.of(2026, 11, 10)),
+                List.of(new LoadForecastItemResponse("B20", "Bidon 20 L", 120))));
+
+        mockMvc.perform(get("/load-forecast").param("routeNumber", "179")
+                        .header("Authorization", "Bearer " + tokenFor("clark", Role.CLARKISTA)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.routeCode").value("Rto 179"))
+                .andExpect(jsonPath("$.data.loadDate").value("2026-11-17"))
+                .andExpect(jsonPath("$.data.basedOnDates[0]").value("2026-11-10"))
+                .andExpect(jsonPath("$.data.items[0].productCode").value("B20"))
+                .andExpect(jsonPath("$.data.items[0].productName").value("Bidon 20 L"))
+                .andExpect(jsonPath("$.data.items[0].quantity").value(120));
+    }
+
+    @Test
+    void shouldLetAnAdminReadTheLoadForecast() throws Exception {
+        when(loadForecastService.forecast(179)).thenReturn(new LoadForecastResponse("Rto 179",
+                java.time.LocalDate.of(2026, 11, 17), List.of(), List.of()));
+
+        mockMvc.perform(get("/load-forecast").param("routeNumber", "179")
+                        .header("Authorization", "Bearer " + tokenFor("boss", Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty());
+    }
+
+    @Test
+    void shouldAnswer403_when_aClarkistaWritesOrGoesUnderTheForecastPath() throws Exception {
+        var auth = "Bearer " + tokenFor("clark", Role.CLARKISTA);
+        mockMvc.perform(post("/load-forecast").header("Authorization", auth))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/load-forecast/anything").header("Authorization", auth))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldAnswer404_when_theForecastRouteIsNotFound() throws Exception {
+        when(loadForecastService.forecast(999)).thenThrow(new ForecastRouteNotFoundException(999));
+
+        mockMvc.perform(get("/load-forecast").param("routeNumber", "999")
+                        .header("Authorization", "Bearer " + tokenFor("clark", Role.CLARKISTA)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldAnswer400_when_theRouteNumberIsMissingOrInvalid() throws Exception {
+        var auth = "Bearer " + tokenFor("clark", Role.CLARKISTA);
+        mockMvc.perform(get("/load-forecast").header("Authorization", auth))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/load-forecast").param("routeNumber", "0").header("Authorization", auth))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/load-forecast").param("routeNumber", "abc").header("Authorization", auth))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

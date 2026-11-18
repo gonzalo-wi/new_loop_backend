@@ -124,6 +124,26 @@ class UserServiceImplTest {
                 .isInstanceOf(BranchRequiredForRoleException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"VISUALIZADOR", "CLARKISTA"})
+    void createUser_rejectsReadOnlyRoleWithoutBranch(String role) {
+        var request = createRequest(Role.valueOf(role));
+
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(BranchRequiredForRoleException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"VISUALIZADOR", "CLARKISTA"})
+    void updateUser_rejectsReadOnlyRoleWithoutBranch(String role) {
+        // The mapper is mocked: set the role as the mapper would have applied it.
+        var user = existingUser();
+        user.setRole(Role.valueOf(role));
+
+        assertThatThrownBy(() -> userService.updateUser(user.getId(), new UpdateUserRequest()))
+                .isInstanceOf(BranchRequiredForRoleException.class);
+    }
+
     @Test
     void createUser_acceptsControllerWithBranch() {
         var branch  = new Branch();

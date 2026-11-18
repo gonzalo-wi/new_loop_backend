@@ -533,6 +533,54 @@ class StockControlServiceImplTest {
         }
     }
 
+    // 8b. Viewers: read-only, limited to their own branch
+    @Test
+    void should_forceViewerBranch_when_listingControls() {
+        var viewer = nonSupervisor(Role.VISUALIZADOR);
+        when(currentUserProvider.current()).thenReturn(Optional.of(viewer));
+        when(stockControlRepository.findAll(org.mockito.ArgumentMatchers.<Specification<StockControl>>any(), any(Pageable.class))).thenReturn(Page.empty());
+
+        try (var specs = mockStatic(StockControlSpecification.class)) {
+            stockControlService.getAllControls(null, null, null, null, UUID.randomUUID(), null, null, null, null, Pageable.unpaged());
+
+            specs.verify(() -> StockControlSpecification.withFilters(
+                    isNull(), isNull(), isNull(), isNull(), eq(viewer.branchId()),
+                    isNull(), isNull(), isNull(), isNull()));
+        }
+    }
+
+    @Test
+    void should_returnControl_when_viewerReadsAControlOfTheirBranch() {
+        var viewer = nonSupervisor(Role.VISUALIZADOR);
+        control.getBranch().setId(viewer.branchId());
+        var response = StockControlResponse.builder().id(controlId).build();
+        when(currentUserProvider.current()).thenReturn(Optional.of(viewer));
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(control));
+        when(stockControlMapper.toResponse(control)).thenReturn(response);
+
+        assertThat(stockControlService.getControlById(controlId)).isSameAs(response);
+    }
+
+    @Test
+    void should_answerNotFound_when_viewerReadsAControlOfAnotherBranch() {
+        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(Role.VISUALIZADOR)));
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(control));
+
+        assertThatThrownBy(() -> stockControlService.getControlById(controlId))
+                .isInstanceOf(StockControlNotFoundException.class);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"CONTROLADOR", "SUPERVISOR", "ADMIN", "REPARTIDOR"})
+    void should_keepReturningAnyControl_when_userIsNotReadOnly(Role role) {
+        var response = StockControlResponse.builder().id(controlId).build();
+        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(role)));
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(control));
+        when(stockControlMapper.toResponse(control)).thenReturn(response);
+
+        assertThat(stockControlService.getControlById(controlId)).isSameAs(response);
+    }
+
     // 9. Remito printed mark: operators share one panel session and need to know what was printed
     @Test
     void should_markRemitoPrinted_when_exitControlHasRemito() {

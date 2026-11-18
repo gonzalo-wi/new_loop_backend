@@ -13,6 +13,7 @@ Módulo para registrar salidas y entradas de mercadería de los repartos.
 - [Rechazar control (repartidor)](#rechazar-control-repartidor)
 - [Corregir control (SUPERVISOR)](#corregir-control-supervisor)
 - [Ver remito en PDF](#ver-remito-en-pdf)
+- [Pronóstico de carga (CLARKISTA)](#pronóstico-de-carga-clarkista)
 - [Referencia de campos](#referencia-de-campos)
 
 ---
@@ -486,6 +487,42 @@ DELETE /holidays/{id}                 # solo ADMIN
 - Valen para todas las sucursales. Se puede cargar hoy o una fecha pasada (feriado imprevisto).
 - Una fecha que ya es feriado → `409`. Un id que no existe → `404`. Otros roles en `POST`/`DELETE` → `403`.
 - `GET` devuelve `[{ "id", "date", "description" }]` ordenado por fecha.
+
+---
+
+## Pronóstico de carga (CLARKISTA)
+
+```
+GET /load-forecast?routeNumber=179
+Authorization: Bearer <token>
+```
+
+Para el clarkista que carga los camiones: qué suele llevar el reparto el **próximo día de reparto**.
+
+- **Día de carga** (`loadDate`): mañana, o el lunes si mañana es domingo (la misma fecha que toma una salida creada hoy). Lo calcula el servidor en hora de Argentina.
+- **Días de referencia**: los 4 mismos días de la semana anteriores al día de carga (ej. para el martes 17/11: 10/11, 03/11, 27/10 y 20/10).
+- **Cantidad por producto**: promedio del `totalQuantity` de los controles de **salida** no cancelados del reparto en esos días. Se divide por la cantidad de controles encontrados (si hubo 2 de 4, por 2), un producto que falta en un control cuenta como 0, y se redondea al entero (2,5 → 3). Los productos que dan 0 no se devuelven.
+- El reparto se busca por número entre los repartos **activos de la sucursal** del clarkista ("Rto 179" para 179). Un ADMIN busca en todas las sucursales.
+
+Respuesta `200`:
+
+```json
+{
+  "success": true,
+  "message": "Load forecast retrieved successfully",
+  "data": {
+    "routeCode": "Rto 179",
+    "loadDate": "2026-11-17",
+    "basedOnDates": ["2026-10-20", "2026-10-27", "2026-11-03", "2026-11-10"],
+    "items": [{ "productCode": "B20", "productName": "Bidón 20 L", "quantity": 120 }]
+  }
+}
+```
+
+- Sin controles de referencia: `basedOnDates` e `items` vacíos (la app muestra "No hay datos").
+- `404`: no hay un único reparto activo con ese número (en la sucursal, o en todas para un ADMIN).
+- `400`: falta `routeNumber` o no es un entero positivo.
+- `403`: cualquier rol que no sea `CLARKISTA` o `ADMIN`.
 
 ---
 

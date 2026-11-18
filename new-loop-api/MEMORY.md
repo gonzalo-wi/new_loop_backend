@@ -1,6 +1,25 @@
 # MEMORY
 
 ## Specs in progress
+- **008-viewer-and-clarkista-roles** — Status: approved; implemented in the three repos (2026-11-16), not committed.
+  - Two read-only branch-scoped roles: VISUALIZADOR (panel, entry/exit controls of their branch, no remito)
+    and CLARKISTA (app on a tablet, load forecast by route number).
+  - Forecast decided by the user: average of the route's own EXIT controls (what was loaded), not orders;
+    load day = next delivery day (Sunday skipped); no data -> "No hay datos". Window of 4 same weekdays and
+    no holiday skipping were proposed by Claude and accepted with the plan (2026-11-16).
+  - Branch: feat/viewer-and-clarkista-roles (from main).
+  - Plan: one central allowlist for read-only roles in the security chain (new endpoints denied to them by
+    default); forecast uses EXIT `totalQuantity`, BigDecimal half-up, duplicated route number = not found.
+  - Backend: full suite 663 run, 0 failures, 54 skipped. Review fixes: the forecast matcher is GET only
+    (anything else under /load-forecast goes through the allowlist -> 403). LoadForecastRepositoryTest
+    (findReferenceControls + V43) passes on local Postgres (2026-11-17).
+  - Pre-existing Postgres failures, identical on main (2026-11-17), not caused by 008:
+    NewLoopApiApplicationTests.contextLoads (context without test DB props), StockControlDuplicateConcurrencyTest
+    (3: no authenticated user, edits now require CONTROLADOR/SUPERVISOR/ADMIN), DispenserSerialHistoryRepositoryTest
+    .shouldPersistBaggedSerials (LazyInitializationException on baggedSerials).
+  - Panel branch feat/viewer-role, app branch feat/clarkista-load-forecast. Deploy the panel together with
+    the backend: the panel maps unknown roles to "controller", so an old panel would show a viewer the full menu
+    (the API still answers 403).
 - **001-operational-metrics** — Status: draft (spec written 2026-10-28, open questions answered the same day).
   - Durable, append-only operational events per user (controls, dispenser movements), separate from
     `audit_logs`, which keeps its one-year retention and free-form JSON.

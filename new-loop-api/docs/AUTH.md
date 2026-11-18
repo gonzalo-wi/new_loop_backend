@@ -66,6 +66,10 @@ Content-Type: application/json
 | `SUPERVISOR`         | Supervisión y reportes             |
 | `CONTROLADOR`        | Operario de planta: controles de stock, pedidos descartables y movimientos de dispensers. Requiere sucursal |
 | `REPARTIDOR`         | Aprueba o rechaza controles        |
+| `VISUALIZADOR`       | Solo lectura desde el panel: ve los controles de entrada y salida de su sucursal (listado, detalle y pendientes de llegada). No puede crear, editar, aprobar, rechazar, corregir ni bajar o imprimir remitos. Requiere sucursal |
+| `CLARKISTA`          | Solo lectura desde la app (tablet): consulta el pronóstico de carga de un reparto de su sucursal (`GET /load-forecast`). Requiere sucursal |
+
+> `VISUALIZADOR` y `CLARKISTA` tienen una lista cerrada de endpoints permitidos (`ReadOnlyRoleAccessPolicy`). Cualquier otro endpoint, incluidos los que se agreguen en el futuro, les responde `403` hasta que se los habilite explícitamente. El login y el chequeo de versión de la app siguen siendo públicos.
 
 > `PICKER` y `CARGADOR_DISPENSERS` ya no existen: se unificaron en `CONTROLADOR`. Si se envía uno de ellos (u otro rol desconocido) al crear o editar un usuario, el backend responde `400`.
 

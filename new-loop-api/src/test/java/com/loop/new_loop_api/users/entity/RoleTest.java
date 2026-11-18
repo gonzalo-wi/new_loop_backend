@@ -10,8 +10,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RoleTest {
 
     @ParameterizedTest
-    @EnumSource(value = Role.class, names = {"CONTROLADOR"})
-    void shouldBeBranchScopedForWarehouseOperator(Role role) {
+    @EnumSource(value = Role.class, names = {"CONTROLADOR", "VISUALIZADOR", "CLARKISTA"})
+    void shouldBeBranchScopedForPlantRoles(Role role) {
         assertThat(role.isBranchScoped()).isTrue();
     }
 
@@ -19,6 +19,18 @@ class RoleTest {
     @EnumSource(value = Role.class, names = {"ADMIN", "SUPERVISOR", "REPARTIDOR"})
     void shouldNotBeBranchScopedForOtherRoles(Role role) {
         assertThat(role.isBranchScoped()).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"VISUALIZADOR", "CLARKISTA"})
+    void shouldBeReadOnlyForViewerAndClarkista(Role role) {
+        assertThat(role.isReadOnly()).isTrue();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"ADMIN", "SUPERVISOR", "REPARTIDOR", "CONTROLADOR"})
+    void shouldNotBeReadOnlyForOperationalRoles(Role role) {
+        assertThat(role.isReadOnly()).isFalse();
     }
 
     @ParameterizedTest
