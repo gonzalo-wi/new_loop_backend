@@ -723,6 +723,58 @@ class StockControlServiceImplTest {
         verify(stockControlRepository, never()).saveAll(any());
     }
 
+    // 10. Viewers print the remitos of their own branch only
+    @Test
+    void should_renderRemito_when_viewerAsksForAnExitOfTheirBranch() {
+        var viewer = nonSupervisor(Role.VISUALIZADOR);
+        var exit = exitControlWithRemito();
+        exit.getBranch().setId(viewer.branchId());
+        when(currentUserProvider.current()).thenReturn(Optional.of(viewer));
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(exit));
+        when(remitoPdfGenerator.generate(exit, false)).thenReturn(new byte[] {1});
+
+        assertThat(stockControlService.generateRemitoPdf(controlId)).containsExactly(1);
+    }
+
+    @Test
+    void should_answerNotFound_when_viewerAsksForTheRemitoOfAnotherBranch() {
+        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(Role.VISUALIZADOR)));
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(exitControlWithRemito()));
+
+        assertThatThrownBy(() -> stockControlService.generateRemitoPdf(controlId))
+                .isInstanceOf(StockControlNotFoundException.class);
+        verifyNoInteractions(remitoPdfGenerator);
+    }
+
+    @Test
+    void should_notMarkPrinted_when_viewerMarksTheRemitoOfAnotherBranch() {
+        var exit = exitControlWithRemito();
+        when(currentUserProvider.current()).thenReturn(Optional.of(nonSupervisor(Role.VISUALIZADOR)));
+        when(stockControlRepository.findById(controlId)).thenReturn(Optional.of(exit));
+
+        assertThatThrownBy(() -> stockControlService.markRemitoPrinted(controlId))
+                .isInstanceOf(StockControlNotFoundException.class);
+        assertThat(exit.getRemitoPrinted()).isNotEqualTo(true);
+        verify(stockControlRepository, never()).save(any());
+    }
+
+    @Test
+    void should_failBatch_when_viewerIncludesARemitoOfAnotherBranch() {
+        var viewer = nonSupervisor(Role.VISUALIZADOR);
+        var own   = exitWithRemito("11", java.time.LocalDate.now());
+        var other = exitWithRemito("22", java.time.LocalDate.now());
+        own.getBranch().setId(viewer.branchId());
+        when(currentUserProvider.current()).thenReturn(Optional.of(viewer));
+        when(stockControlRepository.findAllById(any())).thenReturn(List.of(own, other));
+
+        assertThatThrownBy(() -> stockControlService.markRemitosPrinted(List.of(own.getId(), other.getId())))
+                .isInstanceOf(RemitoBatchNotAvailableException.class)
+                .hasMessageContaining("control " + other.getId() + ": not found")
+                .hasMessageNotContaining("route 22");
+        assertThat(own.getRemitoPrinted()).isNotEqualTo(true);
+        verify(stockControlRepository, never()).saveAll(any());
+    }
+
     private StockControl exitWithRemito(String routeCode, java.time.LocalDate date) {
         var exit = exitControlWithRemito();
         exit.setId(UUID.randomUUID());

@@ -5,11 +5,12 @@ Status: approved (user, 2026-11-16, chat)
 <!-- Keep the "Status:" line and the [NEEDS CLARIFICATION] markers literal: commands search for them. -->
 
 ## Context and goal
-Two new kinds of users need LOOP, each only to look at data, never to change it.
+Two new kinds of users need LOOP, each only to look at data, never to change it (since 2026-11-18 viewers also print their branch's
+remitos, which marks them printed; see FR-6).
 
 1. **Viewer** (role VISUALIZADOR): people at each plant (Ciudadela, La Plata, NAF) who need to follow
    the entry and exit stock controls of their own plant from the admin panel, without being able to
-   create, edit, correct, approve or print anything.
+   create, edit, correct or approve anything (printing remitos was added later, FR-6).
 2. **Forklift operator** (role CLARKISTA): loads the trucks for the next delivery day. On a tablet,
    with the mobile app, they type a route number and see how much of each product that truck usually
    takes, so they can prepare the load. The figure is a forecast built from the route's own past exit
@@ -46,9 +47,12 @@ Two new kinds of users need LOOP, each only to look at data, never to change it.
 - FR-4: WHEN a viewer requests one stock control by id, THE SYSTEM SHALL return it only if it belongs to
   the viewer's branch; otherwise THE SYSTEM SHALL answer "not found".
 - FR-5: IF a viewer calls any operation that changes data (create, edit, approve, reject, correct,
-  mark a remito as printed, or any other non-read operation), THEN THE SYSTEM SHALL deny it (403)
-  without changing anything.
-- FR-6: IF a viewer requests a remito PDF (single or batch), THEN THE SYSTEM SHALL deny it (403).
+  or any other non-read operation except marking remitos printed, see FR-6), THEN THE SYSTEM SHALL deny
+  it (403) without changing anything.
+- FR-6 (changed 2026-11-18, requested by the user): WHEN a viewer requests the remito PDF of an exit of
+  their branch (single or batch) or marks it printed, THE SYSTEM SHALL serve it as for other panel roles;
+  a control of another branch SHALL answer "not found" (in a batch, the whole batch fails listing it as
+  not found). The remito by route and date (`GET /stock-controls/remito`) stays denied (403).
 - FR-7: IF a viewer requests any read outside what the stock control pages of the panel need
   (controls, and the branch / route / product lists used by their filters and detail), THEN THE SYSTEM
   SHALL deny it (403).
@@ -77,7 +81,7 @@ Two new kinds of users need LOOP, each only to look at data, never to change it.
 - FR-15: WHEN a viewer logs into the panel, THE panel SHALL show only the stock entries and stock exits
   pages, landing on stock exits.
 - FR-16: WHILE the user is a viewer, THE panel SHALL hide every action that changes data or prints on
-  those pages: new control, edit, correct, remito download/print, batch selection.
+  those pages: new control, edit, correct. Remito view/print and batch printing stay visible (FR-6).
 - FR-17: IF a forklift operator tries to log into the panel, THEN THE panel SHALL refuse with a Spanish
   message saying the user is for the mobile app.
 
@@ -96,7 +100,8 @@ Two new kinds of users need LOOP, each only to look at data, never to change it.
 
 ## Non-functional requirements
 - NFR-1: The forecast request SHALL answer in under 1 second for a route with 4 reference controls.
-- NFR-2: Neither role SHALL be able to change any data through the API, regardless of what the UI shows.
+- NFR-2: Neither role SHALL be able to change any data through the API, regardless of what the UI shows,
+  except a viewer marking their branch's remitos printed (FR-6).
 
 ## Out of scope
 - Changing the driver's "Sugerir pedido" (it keeps copying last week's order).

@@ -17,8 +17,12 @@ class ReadOnlyRoleAccessPolicyTest {
             "GET, /stock-controls",
             "GET, /stock-controls/pending-arrivals",
             "GET, /stock-controls/" + CONTROL_ID,
+            "GET, /stock-controls/" + CONTROL_ID + "/remito",
+            "POST, /stock-controls/remitos",
+            "POST, /stock-controls/" + CONTROL_ID + "/remito/printed",
+            "POST, /stock-controls/remitos/printed",
     })
-    void shouldAllowViewerToReadStockControls(String method, String path) {
+    void shouldAllowViewerToReadStockControlsAndPrintRemitos(String method, String path) {
         assertThat(ReadOnlyRoleAccessPolicy.allows(Role.VISUALIZADOR, method, path)).isTrue();
     }
 
@@ -30,11 +34,10 @@ class ReadOnlyRoleAccessPolicyTest {
             "POST,  /stock-controls/" + CONTROL_ID + "/reject",
             "POST,  /stock-controls/" + CONTROL_ID + "/correct",
             "GET,   /stock-controls/remito",
-            "GET,   /stock-controls/" + CONTROL_ID + "/remito",
-            "POST,  /stock-controls/" + CONTROL_ID + "/remito/printed",
-            "POST,  /stock-controls/remitos",
-            "POST,  /stock-controls/remitos/printed",
             "GET,   /stock-controls/not-a-uuid",
+            "GET,   /stock-controls/remitos",
+            "GET,   /stock-controls/" + CONTROL_ID + "/remito/printed",
+            "PATCH, /stock-controls/" + CONTROL_ID + "/remito",
             "GET,   /orders",
             "GET,   /users",
             "GET,   /load-forecast",

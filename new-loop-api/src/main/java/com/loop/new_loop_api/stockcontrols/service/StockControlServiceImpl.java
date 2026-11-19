@@ -145,11 +145,15 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional(readOnly = true)
     public StockControlResponse getControlById(UUID id) {
+        return stockControlMapper.toResponse(findVisibleControlById(id));
+    }
+
+    private StockControl findVisibleControlById(UUID id) {
         var control = findControlById(id);
         if (!isVisibleToReadOnlyUser(control)) {
             throw new StockControlNotFoundException(id);
         }
-        return stockControlMapper.toResponse(control);
+        return control;
     }
 
     /** Read-only roles only see their own branch; "not found" so other branches' ids are not revealed. */
@@ -261,7 +265,7 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional(readOnly = true)
     public byte[] generateRemitoPdf(UUID id) {
-        return buildRemito(findControlById(id));
+        return buildRemito(findVisibleControlById(id));
     }
 
     @Override
@@ -277,7 +281,7 @@ public class StockControlServiceImpl implements StockControlService {
     @Override
     @Transactional
     public StockControlResponse markRemitoPrinted(UUID id) {
-        var control = findControlById(id);
+        var control = findVisibleControlById(id);
         assertRemitoAvailable(control);
         control.setRemitoPrinted(true);
         return stockControlMapper.toResponse(stockControlRepository.save(control));
@@ -310,7 +314,7 @@ public class StockControlServiceImpl implements StockControlService {
         var controls = new ArrayList<StockControl>();
         for (var id : uniqueIds) {
             var control = byId.get(id);
-            if (control == null) {
+            if (control == null || !isVisibleToReadOnlyUser(control)) {
                 failures.add("control " + id + ": not found");
                 continue;
             }
