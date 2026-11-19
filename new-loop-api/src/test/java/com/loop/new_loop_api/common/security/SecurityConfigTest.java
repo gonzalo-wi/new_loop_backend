@@ -112,7 +112,7 @@ class SecurityConfigTest {
     }
 
     @Test
-    void shouldAnswer403_when_aViewerTriesToChangeOrPrintAControl() throws Exception {
+    void shouldAnswer403_when_aViewerTriesToChangeAControl() throws Exception {
         var auth = "Bearer " + tokenFor("visor", Role.VISUALIZADOR);
         var json = "application/json";
         mockMvc.perform(post("/stock-controls").header("Authorization", auth).contentType(json).content("{}"))
@@ -125,12 +125,24 @@ class SecurityConfigTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/stock-controls/" + CONTROL_ID + "/correct").header("Authorization", auth).contentType(json).content("{}"))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(get("/stock-controls/remito").header("Authorization", auth))
+                .andExpect(status().isForbidden());
+    }
+
+    // Viewers print the remitos of their branch from the panel (the service scopes the branch).
+    @Test
+    void shouldLetAViewerDownloadAndMarkRemitosPrinted() throws Exception {
+        var auth = "Bearer " + tokenFor("visor", Role.VISUALIZADOR);
+        var json = "application/json";
+        var batch = "{\"ids\":[\"" + CONTROL_ID + "\"]}";
         mockMvc.perform(get("/stock-controls/" + CONTROL_ID + "/remito").header("Authorization", auth))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(post("/stock-controls/remitos").header("Authorization", auth).contentType(json).content("{}"))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(post("/stock-controls/remitos/printed").header("Authorization", auth).contentType(json).content("{}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/stock-controls/" + CONTROL_ID + "/remito/printed").header("Authorization", auth))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/stock-controls/remitos").header("Authorization", auth).contentType(json).content(batch))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/stock-controls/remitos/printed").header("Authorization", auth).contentType(json).content(batch))
+                .andExpect(status().isOk());
     }
 
     @Test

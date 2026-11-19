@@ -29,10 +29,14 @@ The panel (FR-14..FR-17) and the app (FR-18..FR-22) are planned and done in thei
 
 ```
 allowed(role, method, path):
-  VISUALIZADOR: method == GET and path matches one of
-      /stock-controls
-      /stock-controls/pending-arrivals
-      /stock-controls/{uuid}            (regex on UUID, so /stock-controls/remito does not match)
+  VISUALIZADOR: (method, path) matches one of
+      GET  /stock-controls
+      GET  /stock-controls/pending-arrivals
+      GET  /stock-controls/{uuid}            (regex on UUID, so /stock-controls/remito does not match)
+      GET  /stock-controls/{uuid}/remito     (added 2026-11-18, FR-6)
+      POST /stock-controls/{uuid}/remito/printed
+      POST /stock-controls/remitos
+      POST /stock-controls/remitos/printed
   CLARKISTA:    method == GET and path == /load-forecast
   other roles:  not handled here (existing rules apply)
 ```
@@ -99,9 +103,9 @@ Roles in `/auth/login` and `/users`: `VISUALIZADOR`, `CLARKISTA`, both with `bra
 
 - `RoleTest`: `isBranchScoped` / `isReadOnly` per role. (FR-1, FR-2)
 - `UserServiceImplTest`: creating a VISUALIZADOR / CLARKISTA without a branch → `BranchRequiredForRoleException`. (FR-2)
-- `ReadOnlyRoleAccessPolicyTest`: allowed and denied cases (writes, remito GETs, remito batch POST, other modules). (FR-5..7, FR-12)
+- `ReadOnlyRoleAccessPolicyTest`: allowed and denied cases (writes, the remito by route and date, other modules; since FR-6 changed, the remito endpoints of FR-6 are allowed). (FR-5..7, FR-12)
 - `SecurityConfigTest` (real filter chain): VISUALIZADOR → 200 on list/detail, 403 on POST/PATCH,
-  approve, reject, correct, GET remito, POST remitos, GET /orders; CLARKISTA → 403 on /stock-controls;
+  approve, reject, correct, GET remito by route and date, GET /orders, and not 403 on the FR-6 remito endpoints; CLARKISTA → 403 on /stock-controls;
   REPARTIDOR / CONTROLADOR → 403 on /load-forecast. (FR-5..7, FR-12, FR-13, NFR-2)
 - `StockControlServiceImplTest`: viewer list forced to own branch; detail of another branch → not found. (FR-3, FR-4)
 - `LoadDayTest`: Monday → Tuesday, Saturday → Monday, reference days. (FR-8, FR-11)

@@ -2,7 +2,7 @@
 
 ## Specs in progress
 - **008-viewer-and-clarkista-roles** — Status: approved; implemented in the three repos (2026-11-16), not committed.
-  - Two read-only branch-scoped roles: VISUALIZADOR (panel, entry/exit controls of their branch, no remito)
+  - Two read-only branch-scoped roles: VISUALIZADOR (panel, entry/exit controls of their branch; since 2026-11-18 also views/prints their branch's remitos and marks them printed)
     and CLARKISTA (app on a tablet, load forecast by route number).
   - Forecast decided by the user: average of the route's own EXIT controls (what was loaded), not orders;
     load day = next delivery day (Sunday skipped); no data -> "No hay datos". Window of 4 same weekdays and
