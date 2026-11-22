@@ -194,6 +194,61 @@ si PIMS no respondió y se muestra lo último leído).
 
 ---
 
+## 6. Fotos de comprobantes (spec 009)
+
+El repartidor entrega cheques y retenciones junto con su rendición, y Aguas necesita una foto de cada comprobante.
+La app saca o elige la foto desde "Mi rendición" y LOOP la reenvía a Aguas.
+
+```
+POST /settlements/me/receipts
+Authorization: Bearer <token>   (solo REPARTIDOR; otro rol: 403; sin token: 401)
+Content-Type: multipart/form-data
+```
+
+| Campo     | Descripción                                                                                     |
+|-----------|-------------------------------------------------------------------------------------------------|
+| `routeId` | UUID del reparto (exactamente uno). Tiene que ser un reparto **activo** del repartidor logueado |
+| `image`   | La foto (exactamente una): JPEG o PNG, hasta 10 MB (10.485.760 bytes)                            |
+
+Cualquier otra parte, incluida una `fecha` que mande el cliente, se ignora.
+
+- **Número de reparto y fecha los decide el servidor.** El número sale del código del reparto (igual que en la
+  rendición) y la fecha es el día de hoy en hora Argentina, tomada del reloj del servidor: a las 22:00 sigue siendo
+  hoy. Se envían a Aguas junto con la imagen, con el nombre `comprobante-<reparto>-<fecha>.<jpg|png>`.
+- **El formato se decide por los bytes**, no por lo que declare el cliente: JPEG empieza con `FF D8 FF` y PNG con
+  `89 50 4E 47 0D 0A 1A 0A`. Si el tipo declarado no coincide con el real, se rechaza. Un tipo declarado ausente o
+  `application/octet-stream` deja que decidan los bytes.
+- **Un solo intento.** LOOP no reintenta ni sigue redirecciones: una foto nunca se duplica en Aguas por culpa de
+  LOOP. Si falla, el repartidor la manda de nuevo. LOOP no guarda la foto ni un registro del envío.
+- Los cuerpos de error son el `ApiError` de siempre (`timestamp`, `status`, `error`, `message`, `path`).
+
+### Response `204 No Content`
+
+Sin cuerpo: Aguas aceptó la foto (cualquier `2xx`).
+
+### Errores
+
+| Código | Cuándo                                                                               | `message`                                                 |
+|--------|--------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| `400`  | Falta `routeId` o `image`, se repiten, `routeId` no es un UUID, o el cuerpo `multipart` está corrupto y no se puede leer | Falta el reparto o la imagen, o el reparto no es válido |
+| `404`  | El reparto no existe, es de otro repartidor, no tiene repartidor o no está activo (mismo mensaje en todos los casos) | Reparto no encontrado |
+| `413`  | La imagen supera los 10 MB, o el pedido supera el límite global de subida (256 MB)   | La imagen supera los 10 MB                                |
+| `415`  | El pedido no es `multipart/form-data`, o la imagen no es JPEG/PNG o no coincide con el tipo declarado (incluye archivo vacío) | La foto debe enviarse como multipart/form-data / Solo se aceptan imágenes JPEG o PNG |
+| `422`  | El reparto no tiene número                                                           | El reparto no tiene número                                |
+| `502`  | Aguas no respondió bien: error de red, más de 15 segundos, o un estado que no es `2xx` (incluidas redirecciones) | No se pudo enviar la foto a Aguas. Probá de nuevo. |
+
+Orden en que se evalúan (se responde el primero que aplica y nunca se llama a Aguas antes de pasarlos todos):
+401, 403, 413 (límite global), 415 (no multipart), 400, 413 (tamaño), 415 (formato), 404, 422 y recién ahí Aguas (502).
+Las respuestas `401` y `403` vienen del manejo de autenticación de toda la app y conservan su mensaje en inglés.
+
+- El `413` por el límite global es de mejor esfuerzo: el servidor puede cerrar la conexión en vez de contestar.
+- LOOP llama a `AGUAS_BASE_URL` (`POST /api/set-file-reparto-comprobantes`) con un cliente propio que nunca registra el
+  cuerpo de la imagen. Tiempos de espera opcionales: `AGUAS_RECEIPTS_CONNECT_TIMEOUT_MS` (por defecto `5000`) y
+  `AGUAS_RECEIPTS_READ_TIMEOUT_MS` (por defecto `10000`), para que un Aguas caído responda `502` en menos de 17
+  segundos.
+
+---
+
 ## Resumen de endpoints
 
 | Método | Endpoint                          | Descripción                              |
@@ -202,3 +257,5 @@ si PIMS no respondió y se muestra lo último leído).
 | `GET`  | `/stock-controls/{id}`            | Ver detalle de un control                |
 | `POST` | `/stock-controls/{id}/approve`    | Aprobar un control                       |
 | `POST` | `/stock-controls/{id}/reject`     | Rechazar un control con motivo           |
+| `GET`  | `/settlements/me`                 | Ver mi rendición (esperado vs depositado) |
+| `POST` | `/settlements/me/receipts`        | Subir la foto de un comprobante de un reparto (multipart, `204`) |

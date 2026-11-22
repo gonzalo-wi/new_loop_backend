@@ -454,6 +454,7 @@ Ordenado por hora de llegada. Sin llegadas: `data: []`. Se omiten los controles 
 | GET    | `/performance/routes`          | Estadísticas de repartos: estadía, llegadas por hora y día, salidas de la mañana, rechazos (ver `docs/PERFORMANCE.md`) |
 | GET    | `/load-forecast?routeNumber=`  | Pronóstico de carga de un reparto para el próximo día de reparto: promedio de sus controles de salida en los últimos 4 mismos días de la semana (solo CLARKISTA de su sucursal y ADMIN, ver `docs/STOCK_CONTROLS.md`) |
 | GET    | `/settlements/me`              | Rendición del repartidor logueado: esperado vs depositado, leído de PAC (solo REPARTIDOR, ver `docs/DRIVER_FLOW.md` §5) |
+| POST   | `/settlements/me/receipts`     | El repartidor sube la foto de un comprobante (cheque o retención) de uno de sus repartos activos; el backend la reenvía a Aguas. `multipart/form-data` con `routeId` e `image` (JPEG o PNG, hasta 10 MB). `204` sin cuerpo (solo REPARTIDOR, ver `docs/DRIVER_FLOW.md` §6) |
 | GET    | `/integrations/pac/arrivals`   | Rutas que ya volvieron en una fecha, para PAC (HTTP Basic de la integración, sin JWT) |
 
 ---

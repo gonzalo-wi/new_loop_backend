@@ -42,6 +42,8 @@ class ReadOnlyRoleAccessPolicyTest {
             "GET,   /users",
             "GET,   /load-forecast",
             "DELETE, /stock-controls/" + CONTROL_ID,
+            "POST,  /settlements/me/receipts",
+            "GET,   /settlements/me",
     })
     void shouldDenyViewerEverythingElse(String method, String path) {
         assertThat(ReadOnlyRoleAccessPolicy.allows(Role.VISUALIZADOR, method, path)).isFalse();
@@ -60,6 +62,7 @@ class ReadOnlyRoleAccessPolicyTest {
             "GET,  /orders",
             "GET,  /routes",
             "POST, /orders",
+            "POST, /settlements/me/receipts",
     })
     void shouldDenyClarkistaEverythingElse(String method, String path) {
         assertThat(ReadOnlyRoleAccessPolicy.allows(Role.CLARKISTA, method, path)).isFalse();

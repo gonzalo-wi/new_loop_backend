@@ -14,6 +14,7 @@ import com.loop.new_loop_api.loadforecast.dto.LoadForecastResponse;
 import com.loop.new_loop_api.loadforecast.exception.ForecastRouteNotFoundException;
 import com.loop.new_loop_api.loadforecast.service.iService.LoadForecastService;
 import com.loop.new_loop_api.settlements.controller.SettlementController;
+import com.loop.new_loop_api.settlements.service.iService.DriverReceiptService;
 import com.loop.new_loop_api.settlements.service.iService.DriverSettlementService;
 import com.loop.new_loop_api.stockcontrols.controller.StockControlController;
 import com.loop.new_loop_api.stockcontrols.service.iService.StockControlService;
@@ -83,6 +84,7 @@ class SecurityConfigTest {
     @MockitoBean private HolidayService         holidayService;
     @MockitoBean private StockControlService    stockControlService;
     @MockitoBean private DriverSettlementService driverSettlementService;
+    @MockitoBean private DriverReceiptService    driverReceiptService;
     @MockitoBean private LoadForecastService     loadForecastService;
 
     private String tokenFor(String username, Role role) {
@@ -328,6 +330,37 @@ class SecurityConfigTest {
     @Test
     void shouldAnswer401_when_theSettlementIsReadWithoutAToken() throws Exception {
         mockMvc.perform(get("/settlements/me")).andExpect(status().isUnauthorized());
+    }
+
+    private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder receiptUpload() {
+        return multipart("/settlements/me/receipts")
+                .file(new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}))
+                .param("routeId", UUID.randomUUID().toString());
+    }
+
+    @Test
+    void shouldAnswer401_when_aReceiptIsUploadedWithoutAToken() throws Exception {
+        mockMvc.perform(receiptUpload()).andExpect(status().isUnauthorized());
+
+        org.mockito.Mockito.verifyNoInteractions(driverReceiptService);
+    }
+
+    @Test
+    void shouldLetADriverReachTheReceiptUpload() throws Exception {
+        mockMvc.perform(receiptUpload().header("Authorization", "Bearer " + tokenFor("chofer", Role.REPARTIDOR)))
+                .andExpect(status().isNoContent());
+
+        org.mockito.Mockito.verify(driverReceiptService).upload(org.mockito.ArgumentMatchers.any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = Role.class, mode = org.junit.jupiter.params.provider.EnumSource.Mode.EXCLUDE,
+            names = "REPARTIDOR")
+    void shouldAnswer403_when_aNonDriverUploadsAReceipt(Role role) throws Exception {
+        mockMvc.perform(receiptUpload().header("Authorization", "Bearer " + tokenFor("u" + role, role)))
+                .andExpect(status().isForbidden());
+
+        org.mockito.Mockito.verifyNoInteractions(driverReceiptService);
     }
 
     @Test

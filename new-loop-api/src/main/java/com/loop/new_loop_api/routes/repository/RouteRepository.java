@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface RouteRepository extends JpaRepository<Route, UUID> {
@@ -73,4 +74,10 @@ public interface RouteRepository extends JpaRepository<Route, UUID> {
 
     /** The routes a driver drives today (spec 007). */
     List<Route> findByDriverIdAndActiveTrueOrderByCodeAsc(UUID driverId);
+
+    /**
+     * One route of that driver, only if active (spec 009). Missing, someone else's, unassigned and inactive all
+     * come back empty, so the caller cannot tell them apart and other drivers' routes are not revealed.
+     */
+    Optional<Route> findByIdAndDriverIdAndActiveTrue(UUID id, UUID driverId);
 }

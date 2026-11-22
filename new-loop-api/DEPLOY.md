@@ -58,3 +58,4 @@ docker compose up -d --build      # reconstruir tras cambios de código
   - La base PostgreSQL debe permitir conexiones desde la IP del servidor Docker (revisar `pg_hba.conf` / `listen_addresses` si es una instalación propia).
 - **Migraciones**: Flyway las aplica solas al iniciar la app (sobre la base que exista).
 - **Aguas**: las URLs se configuran por variables de entorno en el `.env` (`AGUAS_BASE_URL`, `AGUAS_EQUIPMENT_BASE_URL`).
+  - Fotos de comprobantes (`POST /settlements/me/receipts`): usan el mismo `AGUAS_BASE_URL` y un cliente propio con tiempos de espera configurables: `AGUAS_RECEIPTS_CONNECT_TIMEOUT_MS` (por defecto `5000`) y `AGUAS_RECEIPTS_READ_TIMEOUT_MS` (por defecto `10000`). Son opcionales.
