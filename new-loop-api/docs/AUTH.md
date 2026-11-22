@@ -65,7 +65,7 @@ Content-Type: application/json
 | `ADMIN`              | Administrador del sistema          |
 | `SUPERVISOR`         | Supervisión y reportes             |
 | `CONTROLADOR`        | Operario de planta: controles de stock, pedidos descartables y movimientos de dispensers. Requiere sucursal |
-| `REPARTIDOR`         | Aprueba o rechaza controles        |
+| `REPARTIDOR`         | Aprueba o rechaza controles, ve su rendición y sube fotos de comprobantes de sus repartos (`POST /settlements/me/receipts`) |
 | `VISUALIZADOR`       | Solo lectura desde el panel: ve los controles de entrada y salida de su sucursal (listado, detalle y pendientes de llegada). Puede ver e imprimir los remitos de su sucursal (uno o en lote, y quedan marcados como impresos). No puede crear, editar, aprobar, rechazar ni corregir. Requiere sucursal |
 | `CLARKISTA`          | Solo lectura desde la app (tablet): consulta el pronóstico de carga de un reparto de su sucursal (`GET /load-forecast`). Requiere sucursal |
 

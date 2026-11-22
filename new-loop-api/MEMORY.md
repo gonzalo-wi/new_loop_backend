@@ -123,3 +123,26 @@
 - PAC is only asked after the route's ENTRY control: Aguas' expected changes while the route is open (user).
 - App: "Rendición" tab, drivers only; the badge comes from a 5-minute foreground check. Push is phase 2 (it needs
   Firebase and a new library).
+
+## Spec 009 — Driver receipt photos (2026-11-21)
+- Spec, plan and tasks approved (user, 2026-11-21). Implemented on branch `feat/driver-receipt-photos`, not
+  committed. Moves the receipt photo upload from the retired Vue front into the app: `POST /settlements/me/receipts`
+  (multipart `routeId` + `image`, JPEG/PNG up to 10 MB, 204) forwards to Aguas `POST /api/set-file-reparto-comprobantes`
+  with `reparto`, `fecha`, `imagen`. REPARTIDOR only; the route must be the driver's and active (same 404 otherwise).
+- The server decides the date: today in Argentina time (explicit zone, injected clock); a client `fecha` is ignored.
+  Route number = `RouteNumber.of(route.code)`, no number → 422. Format decided by magic bytes, declared type must agree.
+- Own `RestClient` over the JDK `HttpClient` (not the Feign client, whose package logging dumps full requests):
+  no redirects, 5 s connect + 10 s read (`AGUAS_RECEIPTS_CONNECT_TIMEOUT_MS`, `AGUAS_RECEIPTS_READ_TIMEOUT_MS`),
+  exactly one attempt, nothing stored, image bytes never logged. Non-2xx (3xx included) or transport failure → 502.
+- The request is read by hand (`ReceiptUploadRequestReader`) to control error order and Spanish messages; it must
+  unwrap the request (`WebUtils.getNativeRequest`) because security filters wrap it (found by SecurityConfigTest).
+- Errors from this feature are Spanish; 401/403 keep the shared English messages (user decision, FR-15a).
+  `MaxUploadSizeExceededException` is mapped globally to 413 (receipt message on the receipts path, generic Spanish
+  elsewhere; before, other uploads fell into the generic 500).
+- `MultipartBodyBuilder` cannot be used here: it needs `org.reactivestreams`, which the app does not ship.
+- Not verified yet: the new derived query `RouteRepository.findByIdAndDriverIdAndActiveTrue` against Postgres
+  (the context-booting tests are skipped without `LOOP_TEST_DB_URL`),
+  and the manual check on homologation with a real driver and receipt, which stays with the user.
+- A multipart Content-Type with a corrupt body (`MultipartException`, not the max-size one) answers 400 on the
+  receipts path only (user decision); on any other path it keeps the generic 500.
+- App side (photo picker in "Mi rendición") is a separate change in `react-nati`.
